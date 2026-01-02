@@ -1,0 +1,152 @@
+{
+  "project_clockwork_schema": {
+    "version": "5.0.0",
+    "description": "Data structure for The Stack Heist iteration. Defines Map Graph, Crew Entities, and Simulation State.",
+    
+    "definitions": {
+      "StatType": "ENUM: [FORCE, TECH, STEALTH, FACE, NONE]",
+      "NodeType": "ENUM: [ENTRY, TRANSIT, ROOM, VAULT, EXIT]",
+      "NodeStatus": "ENUM: [HIDDEN, REVEALED, SCANNED]",
+      "ItemType": "ENUM: [GEAR, CONSUMABLE]"
+    },
+
+    "gameState": {
+      "description": "Global state for the current run.",
+      "meta": {
+        "runId": "uuid-1234",
+        "turn": 1,
+        "cash": 1500,
+        "intel": 5
+      },
+      "resources": {
+        "heat": 0,
+        "maxHeat": 100,
+        "heatDecay": 10
+      },
+      "flags": {
+        "vaultCracked": false,
+        "alarmTriggered": false
+      }
+    },
+
+    "map": {
+      "description": "The static graph of the facility.",
+      "levelId": "bank_lvl_01",
+      "nodes": [
+        {
+          "id": "n_001",
+          "x": 100,
+          "y": 500,
+          "type": "ENTRY",
+          "name": "Sewer Grate",
+          "description": "Smells bad, but it is quiet.",
+          "status": "REVEALED",
+          "properties": {
+            "statCheck": "FORCE",
+            "difficulty": 3,
+            "riskValue": 10,
+            "lootValue": 0
+          },
+          "connectedTo": ["n_002", "n_005"]
+        },
+        {
+          "id": "n_002",
+          "x": 250,
+          "y": 450,
+          "type": "TRANSIT",
+          "name": "Basement Hallway",
+          "description": "Dark and damp.",
+          "status": "HIDDEN",
+          "properties": {
+            "statCheck": "STEALTH",
+            "difficulty": 5,
+            "riskValue": 15,
+            "lootValue": 0
+          }
+        },
+        {
+          "id": "n_010",
+          "x": 800,
+          "y": 300,
+          "type": "VAULT",
+          "name": "Main Vault",
+          "description": "The prize.",
+          "status": "HIDDEN",
+          "properties": {
+            "statCheck": "TECH",
+            "difficulty": 9,
+            "riskValue": 50,
+            "lootValue": 5000
+          }
+        }
+      ],
+      "edges": [
+        { "from": "n_001", "to": "n_002" },
+        { "from": "n_002", "to": "n_003" }
+      ]
+    },
+
+    "crew": {
+      "description": "The active team drafted for this heist.",
+      "activeStack": [
+        {
+          "id": "c_muscle_01",
+          "name": "Brick",
+          "role": "MUSCLE",
+          "stats": {
+            "force": 8,
+            "tech": 1,
+            "stealth": 2,
+            "face": 1
+          },
+          "status": "ACTIVE",
+          "inventory": ["i_crowbar"]
+        },
+        {
+          "id": "c_hacker_01",
+          "name": "Zero",
+          "role": "TECH",
+          "stats": {
+            "force": 1,
+            "tech": 9,
+            "stealth": 4,
+            "face": 2
+          },
+          "status": "ACTIVE",
+          "inventory": ["i_laptop"]
+        }
+      ]
+    },
+
+    "itemLibrary": {
+      "description": "Lookup table for items referenced in crew inventories.",
+      "i_crowbar": {
+        "name": "Rusty Crowbar",
+        "type": "GEAR",
+        "effect": { "stat": "FORCE", "value": 2 },
+        "cost": 200
+      },
+      "i_laptop": {
+        "name": "Decryptor V1",
+        "type": "GEAR",
+        "effect": { "stat": "TECH", "value": 1 },
+        "cost": 500
+      }
+    },
+
+    "simulation": {
+      "description": "Runtime data for the execution phase.",
+      "status": "PLANNING", 
+      "plannedPath": ["n_001", "n_002", "n_010", "n_011"],
+      "currentNodeIndex": 0,
+      "log": [
+        {
+          "nodeId": "n_001",
+          "actionTaken": "Entered Sewer Grate",
+          "result": "SUCCESS",
+          "heatDelta": 0
+        }
+      ]
+    }
+  }
+}

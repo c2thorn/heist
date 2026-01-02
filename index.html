@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Project CLOCKWORK</title>
+  <style>
+    html,
+    body {
+      background-color: #000 !important;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- SHOP / SAFEHOUSE SCREEN -->
+  <div id="shop-screen" style="display:none;">
+    <div id="shop-header">
+      <h1>THE SAFEHOUSE</h1>
+      <div class="shop-stats">
+        <span id="shop-day">DAY: 1</span>
+        <span id="shop-cash">CASH: $0</span>
+        <span id="shop-heat">HEAT: 0%</span>
+      </div>
+    </div>
+    <div id="shop-main">
+      <div class="shop-item">
+        <h3>BUY INTEL</h3>
+        <p>Get 5 Intel to help scout the next map.</p>
+        <button id="buy-intel-btn">BUY ($200)</button>
+      </div>
+      <div class="shop-item">
+        <h3>LAUNDER MONEY</h3>
+        <p>Bribe officials to reduce Heat by 20%.</p>
+        <button id="launder-btn">LAUNDER ($500)</button>
+      </div>
+      <div class="shop-item">
+        <h3>HIRE SPECIALIST</h3>
+        <p>Expand the team's capabilities (Placeholder).</p>
+        <button disabled>HIRE ($1000)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME RESULTS MODAL -->
+  <div id="game-results-screen" style="display:none;">
+    <div id="results-modal">
+      <h1 id="results-title">HEIST SUCCESSFUL</h1>
+      <p id="results-msg"></p>
+      <button id="results-btn">GO TO SAFEHOUSE</button>
+    </div>
+  </div>
+
+  <!-- UNIFIED GAME LAYER -->
+  <div id="game-container"></div>
+
+  <div id="hud-layer">
+    <div id="hud-top">
+      <div id="resource-hud">
+        <div class="res-item" id="intel-display">INTEL: 0</div>
+        <div id="view-tabs">
+          <button id="btn-view-map" class="active">TACTICAL MAP</button>
+          <button id="btn-view-shop">SAFEHOUSE</button>
+        </div>
+        <div class="res-item empty-spacer"></div> <!-- For balancing flex -->
+      </div>
+      <div id="heat-bar-container">
+        <label id="heat-label">SYSTEM HEAT: 0%</label>
+        <div id="heat-bar-bg">
+          <div id="heat-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTION PANEL (Floating Right) -->
+    <div id="action-panel">
+      <button id="execute-btn" disabled>EXECUTE HEIST</button>
+      <div id="intel-brief-mini"></div>
+    </div>
+
+    <div id="hud-center">
+      <div id="event-log"></div>
+    </div>
+
+    <!-- COMMAND DECK (BOTTOM) -->
+    <div id="command-deck">
+      <div class="deck-section" id="active-section">
+        <div class="section-label">ACTIVE STACK</div>
+        <div id="active-list-panel" class="deck-list"></div>
+      </div>
+      <div class="deck-divider"></div>
+      <div class="deck-section" id="roster-section">
+        <div class="section-label">RESERVES</div>
+        <div id="roster-list-panel" class="deck-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/renderer.js"></script>
+  <script>
+    window.addEventListener('gameStateUpdated', (e) => {
+      const executeBtn = document.getElementById('execute-btn');
+      if (!executeBtn) return;
+      const { isCompletable } = e.detail;
+      executeBtn.disabled = !isCompletable;
+      if (isCompletable) executeBtn.classList.add('ready');
+      else executeBtn.classList.remove('ready');
+    });
+
+    document.getElementById('execute-btn')?.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('startHeist'));
+    });
+
+    window.addEventListener('heistEventLog', (e) => {
+      const log = document.getElementById('event-log');
+      if (!log) return;
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${e.detail.outcome.toLowerCase()}`;
+      entry.innerText = e.detail.message;
+      log.prepend(entry);
+    });
+  </script>
+</body>
+
+</html>
