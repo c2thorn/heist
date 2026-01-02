@@ -31,7 +31,7 @@ export const SimulationEngine = {
                 // Reveal if hidden when stack arrives (Blind Jump)
                 if (node.status === 'HIDDEN') {
                     node.status = 'REVEALED';
-                    scene.refreshNodeVisual(node.id);
+                    scene.refreshNode(node.id);
                 }
             }
 

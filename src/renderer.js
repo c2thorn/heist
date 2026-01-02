@@ -1,6 +1,5 @@
 import './index.css';
-import Phaser from 'phaser';
-import { BlueprintScene } from './game/scenes/BlueprintScene';
+import { MapRenderer } from './ui/map/MapRenderer';
 import { commandCenterUI } from './ui/CommandCenterUI';
 import { shopManager } from './ui/ShopManager';
 import GameManager from './game/GameManager';
@@ -17,28 +16,11 @@ GameManager.gameState.map = day1Map;
 commandCenterUI.init();
 shopManager.init();
 
-// 3. Launch Phaser Immediately
-const config = {
-  type: Phaser.AUTO,
-  width: window.innerWidth,
-  height: window.innerHeight,
-  parent: 'game-container',
-  backgroundColor: '#1d1d1d',
-  physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { y: 0 },
-      debug: false
-    }
-  },
-  scene: [BlueprintScene],
-  scale: {
-    mode: Phaser.Scale.ENVELOP,
-    autoCenter: Phaser.Scale.CENTER_BOTH
-  }
-};
-
-const gameInstance = new Phaser.Game(config);
+// 3. Initialize HTML Map Renderer
+const mapRenderer = new MapRenderer();
+mapRenderer.init();
+// Remove Phaser Instance
+// const gameInstance = new Phaser.Game(config);
 
 // 4. View Management Logic
 const views = {
@@ -113,15 +95,46 @@ window.addEventListener('heatLaundered', () => updateGlobalHeat());
 window.addEventListener('heistEventLog', () => updateGlobalHeat()); // Live updates during heist
 
 function updateGlobalHeat() {
-  const heat = GameManager.gameState.resources.heat;
+  const heat = Math.min(100, Math.max(0, GameManager.gameState.resources.heat));
   const fill = document.getElementById('heat-bar-fill');
   const label = document.getElementById('heat-label');
 
   if (fill) {
-    fill.style.width = `${Math.min(100, Math.max(0, heat))}%`;
+    fill.style.width = `${heat}%`;
+
+    // Dynamic Color Interpolation: Blue (0, 0, 255) -> Red (255, 0, 0)
+    // We can use HSL for cleaner transition: Blue(240) -> Red(0)
+    // But direct RGB interpolation might feel more "heat" like (purple middle state)
+    // Let's go with a custom gradient: Blue -> Purple -> Red -> Fire
+
+    let color = '';
+
+    if (heat < 50) {
+      // Cool Blue to Purple
+      // 0% -> rgb(0, 100, 255)
+      // 50% -> rgb(200, 0, 200)
+      const ratio = heat / 50;
+      const r = Math.floor(0 + 200 * ratio);
+      const g = Math.floor(100 * (1 - ratio));
+      const b = Math.floor(255 * (1 - ratio * 0.2));
+      color = `rgb(${r}, ${g}, ${b})`;
+    } else {
+      // Purple to Hot Red
+      // 50% -> rgb(200, 0, 200)
+      // 100% -> rgb(255, 50, 0)
+      const ratio = (heat - 50) / 50;
+      const r = Math.floor(200 + 55 * ratio);
+      const g = Math.floor(50 * ratio);
+      const b = Math.floor(200 * (1 - ratio));
+      color = `rgb(${r}, ${g}, ${b})`;
+    }
+
+    fill.style.backgroundColor = color;
+
+    // Use CSS classes for the pulsing/glow animation effects
     fill.className = '';
-    if (heat >= 80) fill.classList.add('critical');
-    else if (heat >= 50) fill.classList.add('warning');
+    if (heat >= 80) fill.classList.add('high-heat');
+    else if (heat >= 50) fill.classList.add('med-heat');
   }
 
   if (label) {

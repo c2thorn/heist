@@ -250,12 +250,59 @@ body {
 #resource-hud {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   width: 100%;
-  max-width: 800px;
-  /* Constrain width */
-  margin: 0 auto;
+  padding-bottom: 10px;
 }
+
+#heat-bar-container {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+#heat-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #333;
+  border-radius: 4px;
+  overflow: visible;
+  /* Allow glow to spill out */
+  position: relative;
+  box-shadow: inset 0 0 5px #000;
+}
+
+#heat-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: #00ffaa;
+  border-radius: 4px;
+  transition: width 0.3s, background-color 0.3s;
+  position: relative;
+}
+
+/* Pulsing Heat Effects */
+#heat-bar-fill.high-heat {
+  animation: heat-pulse-fast 1s infinite alternate;
+}
+
+#heat-bar-fill.med-heat {
+  box-shadow: 0 0 10px rgba(200, 0, 255, 0.6);
+}
+
+@keyframes heat-pulse-fast {
+  0% {
+    box-shadow: 0 0 10px rgba(255, 50, 0, 0.8);
+  }
+
+  100% {
+    box-shadow: 0 0 25px rgba(255, 100, 0, 1);
+  }
+}
+
+
 
 .res-item {
   width: 100px;
@@ -524,4 +571,189 @@ body {
 
 #results-btn:hover {
   transform: scale(1.05);
+}
+
+/* --- HTML MAP RENDERER --- */
+#game-map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  z-index: 10;
+  pointer-events: none;
+  /* Let clicks pass to nodes */
+}
+
+#map-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+}
+
+.connection-line {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 4;
+}
+
+#map-nodes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.map-node {
+  position: absolute;
+  width: 70px;
+  height: 70px;
+  transform: translate(-35px, -35px);
+  /* Center */
+  background-image: url('/assets/node_hex_bg.png');
+  background-size: cover;
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  transition: transform 0.2s, filter 0.2s;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  text-shadow: 0 0 4px #000;
+}
+
+.map-node:hover {
+  transform: translate(-35px, -35px) scale(1.1);
+  filter: brightness(1.2);
+  z-index: 20;
+}
+
+/* Node States */
+.map-node.hidden {
+  filter: grayscale(1) brightness(0.5);
+  color: #888;
+}
+
+.map-node.entry .node-label {
+  box-shadow: 0 0 10px #00ff00;
+  border: 1px solid #00ff00;
+}
+
+.map-node.exit .node-label {
+  box-shadow: 0 0 10px #0000ff;
+  border: 1px solid #0000ff;
+}
+
+/* Stat Type Coloring */
+.map-node.FORCE .node-content {
+  box-shadow: inset 0 0 15px rgba(255, 0, 0, 0.5);
+  border-radius: 50%;
+}
+
+.map-node.TECH .node-content {
+  box-shadow: inset 0 0 15px rgba(0, 80, 255, 0.5);
+  border-radius: 50%;
+}
+
+.map-node.STEALTH .node-content {
+  box-shadow: inset 0 0 15px rgba(255, 255, 0, 0.4);
+  border-radius: 50%;
+}
+
+.map-node.FACE .node-content {
+  box-shadow: inset 0 0 15px rgba(200, 0, 255, 0.5);
+  border-radius: 50%;
+}
+
+/* Icon Styling */
+.node-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 5px;
+  /* Adjust for centering */
+}
+
+.node-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 0 2px black);
+}
+
+.node-label {
+  font-size: 10px;
+  font-weight: bold;
+  margin-top: 5px;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.node-stat {
+  font-size: 10px;
+  margin-top: 2px;
+  color: #ff4444;
+  /* Default danger */
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* Crew Token */
+#crew-token {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background: #fff;
+  border: 3px solid #000;
+  border-radius: 5px;
+  transform: translate(-20px, -20px);
+  z-index: 100;
+  transition: left 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), top 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+  box-shadow: 0 0 10px #fff;
+}
+
+#crew-token.hidden {
+  display: none;
+}
+
+/* PATH HIGHLIGHTING */
+.connection-line {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 4;
+  transition: all 0.2s;
+}
+
+.connection-line.active {
+  stroke: #ffd700;
+  /* Gold */
+  stroke-width: 6;
+  filter: drop-shadow(0 0 5px #ffd700);
+}
+
+.map-node.in-path {
+  filter: brightness(1.5) sepia(1) hue-rotate(20deg) !important;
+  z-index: 15;
+  animation: slow-pulse 2s infinite ease-in-out;
+}
+
+@keyframes slow-pulse {
+  0% {
+    transform: translate(-35px, -35px) scale(1.0);
+  }
+
+  50% {
+    transform: translate(-35px, -35px) scale(1.05);
+  }
+
+  100% {
+    transform: translate(-35px, -35px) scale(1.0);
+  }
 }
