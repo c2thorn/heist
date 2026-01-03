@@ -12,6 +12,7 @@ import GameManager from './game/GameManager';
 import { MapGenerator } from './game/MapGenerator';
 import { SimulationEngine } from './game/SimulationEngine';
 import { JobBoardUI } from './ui/JobBoardUI';
+import { GridRenderer, TestMapGenerator, Pathfinder, Unit, VisionCone, GridConfig } from './game/grid/index.js';
 
 console.log('Renderer process started. Initializing Command Center...');
 
@@ -36,9 +37,223 @@ if (GameManager.gameState.simulation.status === 'SELECTING_CONTRACT') {
   if (actionPanel) actionPanel.style.display = 'none';
 }
 
-// 3. Initialize HTML Map Renderer
+// 3. Initialize HTML Map Renderer (legacy node-based)
 const mapRenderer = new MapRenderer();
 mapRenderer.init();
+
+// 4. Initialize Tile Grid Renderer
+let gridRenderer = null;
+let tileMap = null;
+let pathfinder = null;
+let testUnit = null;
+let guardVision = null;
+let lastUpdateTime = performance.now();
+
+function initTileGrid() {
+  const canvas = document.getElementById('tile-grid-canvas');
+  const gameMap = document.getElementById('game-map');
+
+  if (!canvas || !gameMap) return;
+
+  // Calculate viewport size from the game-map container
+  const rect = gameMap.getBoundingClientRect();
+
+  // Generate a test building for now
+  tileMap = TestMapGenerator.generateSimpleBuilding();
+
+  // Open some doors for pathfinding
+  const door1 = tileMap.getTile(15, 22);
+  const door2 = tileMap.getTile(16, 22);
+  if (door1) door1.openDoor();
+  if (door2) door2.openDoor();
+
+  // Create renderer with viewport matching the map area
+  gridRenderer = new GridRenderer(canvas, tileMap, {
+    viewportWidth: rect.width,
+    viewportHeight: rect.height
+  });
+
+  // Initialize pathfinder
+  pathfinder = new Pathfinder(tileMap);
+
+  // Create two test units for collision testing
+  testUnit = new Unit('crew_1', 15, 25, tileMap);
+  testUnit.color = '#00ff88';  // Green
+  gridRenderer.addUnit(testUnit);
+
+  const testUnit2 = new Unit('crew_2', 16, 25, tileMap);
+  testUnit2.color = '#ff8800';  // Orange
+  gridRenderer.addUnit(testUnit2);
+
+  // Create a test guard with vision cone
+  const guard = new Unit('guard_1', 15, 18, tileMap);
+  guard.color = '#ff4444';  // Red
+  guard.radius = 10;
+  gridRenderer.addUnit(guard);
+
+  // Create vision cone for the guard (facing down, 90 degree FOV, 6 tile range)
+  guardVision = new VisionCone({
+    range: 6,
+    fov: 90,
+    detectionRate: 0.8
+  });
+  guardVision.setPosition(
+    guard.gridPos.x * GridConfig.TILE_SIZE + GridConfig.TILE_SIZE / 2,
+    guard.gridPos.y * GridConfig.TILE_SIZE + GridConfig.TILE_SIZE / 2,
+    90  // Facing down
+  );
+  gridRenderer.addVisionCone(guardVision);
+
+  // Store guard reference for animation
+  window.testGuard = guard;
+
+  // Setup reroute callbacks for crew units
+  const setupReroute = (unit) => {
+    unit.onNeedReroute = async (blockedUnit) => {
+      console.log(blockedUnit.id, 'needs reroute - blocked too long');
+      // Just stop for now - in full game would find alternate path
+      blockedUnit.stop();
+    };
+  };
+  setupReroute(testUnit);
+  setupReroute(testUnit2);
+
+  // Track selected unit for movement commands
+  window.selectedUnit = testUnit;
+  window.allUnits = [testUnit, testUnit2];
+
+  // Start render loop
+  gridRenderer.startRenderLoop();
+
+  // Start vision/detection update loop
+  setInterval(() => {
+    if (!guardVision || !window.allUnits) return;
+
+    const now = performance.now();
+    const deltaTime = (now - lastUpdateTime) / 1000;
+    lastUpdateTime = now;
+
+    // Rotate guard vision slowly (for demo)
+    const angle = (Date.now() / 50) % 360;
+    const guard = window.testGuard;
+    if (guard) {
+      guardVision.setPosition(
+        guard.worldPos.x,
+        guard.worldPos.y,
+        90 + Math.sin(Date.now() / 2000) * 45  // Sweep back and forth
+      );
+    }
+
+    // Check each crew unit against the vision cone
+    for (const unit of window.allUnits) {
+      const visibility = guardVision.checkVisibility(
+        tileMap,
+        unit.worldPos.x,
+        unit.worldPos.y,
+        unit.stance
+      );
+
+      const detection = guardVision.updateDetection(
+        unit.id,
+        visibility.visible,
+        visibility.distance,
+        unit.stance,
+        deltaTime
+      );
+
+      // Log detection events
+      if (detection.state === 'DETECTED') {
+        if (!unit._wasDetected) {
+          console.log('🚨 DETECTED:', unit.id);
+          unit._wasDetected = true;
+        }
+      } else if (detection.state === 'SUSPICIOUS') {
+        if (!unit._wasSuspicious) {
+          console.log('❓ Suspicious of:', unit.id, `(${Math.round(detection.value * 100)}%)`);
+          unit._wasSuspicious = true;
+          unit._wasDetected = false;
+        }
+      } else {
+        unit._wasSuspicious = false;
+        unit._wasDetected = false;
+      }
+    }
+  }, 50);  // 20 times per second
+
+  // Enable tile grid mode (hides legacy map elements)
+  gameMap.classList.add('tile-grid-mode');
+
+  console.log('Tile grid initialized:', rect.width, 'x', rect.height);
+  console.log('Two units + guard with vision cone. Watch for detection!');
+}
+
+// Handle unit selection via keyboard
+window.addEventListener('keydown', (e) => {
+  if (e.key === '1' && window.allUnits?.[0]) {
+    window.selectedUnit = window.allUnits[0];
+    console.log('Selected:', window.selectedUnit.id, '(green)');
+  } else if (e.key === '2' && window.allUnits?.[1]) {
+    window.selectedUnit = window.allUnits[1];
+    console.log('Selected:', window.selectedUnit.id, '(orange)');
+  }
+});
+
+// Handle click-to-move
+window.addEventListener('tileClicked', async (e) => {
+  const unit = window.selectedUnit;
+  if (!unit || !pathfinder) return;
+
+  const tile = e.detail;
+
+  // Check if tile is walkable
+  const targetTile = tileMap.getTile(tile.x, tile.y);
+  if (!targetTile || !targetTile.isWalkable) {
+    console.log('Cannot move there - tile is not walkable');
+    return;
+  }
+
+  // Check if tile is occupied by another unit
+  if (targetTile.occupantId && targetTile.occupantId !== unit.id) {
+    console.log('Tile occupied by', targetTile.occupantId);
+    return;
+  }
+
+  // Find path, avoiding tiles occupied by other units
+  window.allUnits?.forEach(u => {
+    if (u.id !== unit.id) {
+      pathfinder.avoidTile(u.gridPos.x, u.gridPos.y);
+    }
+  });
+
+  const path = await pathfinder.findPath(
+    unit.gridPos.x, unit.gridPos.y,
+    tile.x, tile.y
+  );
+
+  // Clear avoids
+  pathfinder.clearAllAvoidTiles();
+
+  if (path) {
+    console.log('Path found:', path.length, 'steps');
+    unit.setPath(path);
+  } else {
+    console.log('No path found to destination');
+  }
+});
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  if (gridRenderer) {
+    const gameMap = document.getElementById('game-map');
+    if (gameMap) {
+      const rect = gameMap.getBoundingClientRect();
+      gridRenderer.setViewport(rect.width, rect.height);
+    }
+  }
+});
+
+// Initialize grid after DOM is ready
+setTimeout(initTileGrid, 100);
 
 // 4. View Management Logic
 const views = {

@@ -10,6 +10,25 @@
     /* Let clicks pass to nodes */
 }
 
+/* Tile Grid Canvas */
+#tile-grid-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    pointer-events: auto;
+    cursor: crosshair;
+}
+
+/* Hide legacy map elements when tile grid is active */
+#game-map.tile-grid-mode #map-connections,
+#game-map.tile-grid-mode #map-nodes,
+#game-map.tile-grid-mode #crew-token {
+    display: none;
+}
+
 #map-connections {
     position: absolute;
     top: 0;

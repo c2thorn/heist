@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Grid Test - Project CLOCKWORK</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      background-color: #0a0a12;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0e0e0;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    #app {
+      display: flex;
+      height: 100vh;
+    }
+
+    #canvas-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0d0d16;
+    }
+
+    #grid-canvas {
+      border: 2px solid #333;
+      cursor: crosshair;
+      flex: 1;
+    }
+
+    #controls-bar {
+      background: #12121a;
+      border-top: 1px solid #333;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    #controls-bar .hint {
+      color: #666;
+      margin-left: auto;
+    }
+
+    #controls-bar kbd {
+      background: #2a2a3a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #444;
+      font-family: monospace;
+    }
+
+    #sidebar {
+      width: 280px;
+      background: #12121a;
+      border-left: 1px solid #333;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      font-size: 16px;
+      color: #ffcc00;
+      margin: 0 0 16px 0;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    h2 {
+      font-size: 12px;
+      color: #888;
+      margin: 16px 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #tile-info {
+      background: #1a1a24;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+      white-space: pre-wrap;
+      flex: 1;
+      min-height: 100px;
+      color: #aaa;
+      overflow-y: auto;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 6px 10px;
+      align-items: center;
+    }
+
+    .legend-swatch {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #444;
+      border-radius: 3px;
+    }
+
+    .legend-label {
+      font-size: 11px;
+      color: #ccc;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    button {
+      background: #2a2a3a;
+      border: 1px solid #444;
+      color: #e0e0e0;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    button:hover {
+      background: #3a3a4a;
+      border-color: #ffcc00;
+    }
+
+    #camera-info {
+      font-size: 11px;
+      color: #666;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <div id="canvas-container">
+      <canvas id="grid-canvas"></canvas>
+      <div id="controls-bar">
+        <button id="btn-simple">Simple Building</button>
+        <button id="btn-minimal">Minimal Grid</button>
+        <button id="btn-toggle-fog">Toggle Fog</button>
+        <button id="btn-center">Center View</button>
+        <span id="camera-info">Camera: 0, 0</span>
+        <span class="hint">
+          Pan: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Right-drag or Scroll
+        </span>
+      </div>
+    </div>
+    <div id="sidebar">
+      <h1>Grid Test</h1>
+
+      <h2>Hovered Tile</h2>
+      <div id="tile-info">Move mouse over grid...</div>
+
+      <h2>Zone Legend</h2>
+      <div class="legend" id="zone-legend"></div>
+
+      <h2>Tile Types</h2>
+      <div class="legend">
+        <div class="legend-swatch" style="background: #3d4a5a;"></div>
+        <div class="legend-label">Floor</div>
+        <div class="legend-swatch" style="background: #1a1a2e;"></div>
+        <div class="legend-label">Wall</div>
+        <div class="legend-swatch" style="background: #8b4513;"></div>
+        <div class="legend-label">Door</div>
+        <div class="legend-swatch" style="background: #0a0a12;"></div>
+        <div class="legend-label">Void</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { GridConfig, TileMap, TestMapGenerator, GridRenderer } from './src/game/grid/index.js';
+
+    // Get DOM elements
+    const canvas = document.getElementById('grid-canvas');
+    const tileInfoEl = document.getElementById('tile-info');
+    const zoneLegendEl = document.getElementById('zone-legend');
+    const cameraInfoEl = document.getElementById('camera-info');
+
+    // Calculate available viewport size
+    function getViewportSize() {
+      const container = document.getElementById('canvas-container');
+      const controlsBar = document.getElementById('controls-bar');
+      return {
+        width: container.clientWidth - 4,  // Account for border
+        height: container.clientHeight - controlsBar.offsetHeight - 4
+      };
+    }
+
+    // Generate initial map
+    let tileMap = TestMapGenerator.generateSimpleBuilding();
+    let fogEnabled = false;
+
+    // Create renderer with viewport size
+    const viewport = getViewportSize();
+    let renderer = new GridRenderer(canvas, tileMap, {
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      const vp = getViewportSize();
+      renderer.setViewport(vp.width, vp.height);
+    });
+
+    // Start render loop
+    renderer.startRenderLoop();
+
+    // Update tile info and camera position display
+    setInterval(() => {
+      // Camera info
+      cameraInfoEl.textContent = `Camera: ${Math.round(renderer.camera.x)}, ${Math.round(renderer.camera.y)}`;
+
+      // Tile info
+      if (renderer.hoveredTile) {
+        const tile = renderer.hoveredTile;
+        const zone = tileMap.getZone(tile.zoneId);
+        tileInfoEl.textContent = JSON.stringify({
+          id: tile.id,
+          position: { x: tile.x, y: tile.y },
+          type: tile.type,
+          walkable: tile.isWalkable,
+          visibility: tile.visibility,
+          zone: zone ? zone.name : null
+        }, null, 2);
+      }
+    }, 50);
+
+    // Update zone legend
+    function updateZoneLegend() {
+      zoneLegendEl.innerHTML = '';
+      for (const [zoneId, zone] of tileMap.zones) {
+        const swatch = document.createElement('div');
+        swatch.className = 'legend-swatch';
+        swatch.style.background = zone.color;
+
+        const label = document.createElement('div');
+        label.className = 'legend-label';
+        label.textContent = zone.name;
+
+        zoneLegendEl.appendChild(swatch);
+        zoneLegendEl.appendChild(label);
+      }
+    }
+    updateZoneLegend();
+
+    // Control buttons
+    document.getElementById('btn-simple').onclick = () => {
+      tileMap = TestMapGenerator.generateSimpleBuilding();
+      if (!fogEnabled) tileMap.revealAll();
+      renderer.setTileMap(tileMap);
+      updateZoneLegend();
+    };
+
+    document.getElementById('btn-minimal').onclick = () => {
+      tileMap = TestMapGenerator.generateMinimal();
+      if (!fogEnabled) tileMap.revealAll();
+      renderer.setTileMap(tileMap);
+      updateZoneLegend();
+    };
+
+    document.getElementById('btn-toggle-fog').onclick = () => {
+      fogEnabled = !fogEnabled;
+      if (fogEnabled) {
+        for (let y = 0; y < tileMap.height; y++) {
+          for (let x = 0; x < tileMap.width; x++) {
+            tileMap.getTile(x, y).setVisibility(GridConfig.VISIBILITY.HIDDEN);
+          }
+        }
+      } else {
+        tileMap.revealAll();
+      }
+    };
+
+    document.getElementById('btn-center').onclick = () => {
+      renderer.panTo(16, 16);  // Center of 32x32 map
+    };
+
+    // Log clicked tile
+    window.addEventListener('tileClicked', (e) => {
+      console.log('Tile clicked:', e.detail);
+    });
+
+    // Expose for console debugging
+    window.DEBUG = { tileMap, renderer, GridConfig };
+    console.log('Grid test loaded. Pan with WASD, right-drag, or scroll.');
+    console.log('Access DEBUG.tileMap and DEBUG.renderer from console.');
+  </script>
+</body>
+
+</html>

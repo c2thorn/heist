@@ -1,0 +1,523 @@
+import { GridConfig } from './GridConfig.js';
+
+/**
+ * GridRenderer - Canvas-based tile grid renderer with camera/viewport
+ * Supports panning via drag or WASD keys, and viewport clipping
+ */
+export class GridRenderer {
+    /**
+     * Create a new GridRenderer
+     * @param {HTMLCanvasElement} canvas - Target canvas element
+     * @param {TileMap} tileMap - The tile map to render
+     * @param {Object} options - Optional configuration
+     */
+    constructor(canvas, tileMap, options = {}) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.tileMap = tileMap;
+
+        // Units to render
+        this.units = [];
+
+        // Vision cones to render (for guards/cameras)
+        this.visionCones = [];
+
+        // Rendering settings
+        this.tileSize = GridConfig.TILE_SIZE;
+
+        // Viewport/Camera settings
+        this.camera = {
+            x: 0,       // Camera position (top-left corner in world coords)
+            y: 0,
+            width: options.viewportWidth || 800,
+            height: options.viewportHeight || 500
+        };
+
+        // Pan settings
+        this.panSpeed = 300;  // Pixels per second for keyboard pan
+        this.isDragging = false;
+        this.dragStart = { x: 0, y: 0 };
+        this.cameraStart = { x: 0, y: 0 };
+
+        // Keyboard state
+        this.keysPressed = new Set();
+        this.lastFrameTime = performance.now();
+
+        // Color palette for tile types
+        this.colors = {
+            [GridConfig.TILE_TYPE.VOID]: '#0a0a12',
+            [GridConfig.TILE_TYPE.FLOOR]: '#3d4a5a',
+            [GridConfig.TILE_TYPE.WALL]: '#1a1a2e',
+            [GridConfig.TILE_TYPE.DOOR]: '#8b4513',
+            [GridConfig.TILE_TYPE.WINDOW]: '#4a7c9b',
+            [GridConfig.TILE_TYPE.VENT]: '#2a2a3a',
+            hiddenOverlay: 'rgba(0, 0, 0, 0.9)',
+            revealedOverlay: 'rgba(0, 0, 0, 0.5)',
+            gridLine: 'rgba(255, 255, 255, 0.1)',
+            wallOutline: '#0d0d1a'
+        };
+
+        // Hover state
+        this.hoveredTile = null;
+
+        // Setup canvas size to viewport
+        this._resizeCanvas();
+
+        // Center camera on map initially
+        this._centerCamera();
+
+        // Bind input handlers
+        this._setupInputHandlers();
+    }
+
+    /**
+     * Add a unit to be rendered and updated
+     * @param {Unit} unit - The unit to add
+     */
+    addUnit(unit) {
+        this.units.push(unit);
+    }
+
+    /**
+     * Remove a unit
+     * @param {string} unitId - ID of unit to remove
+     */
+    removeUnit(unitId) {
+        this.units = this.units.filter(u => u.id !== unitId);
+    }
+
+    /**
+     * Get a unit by ID
+     * @param {string} unitId - ID of unit
+     * @returns {Unit|null}
+     */
+    getUnit(unitId) {
+        return this.units.find(u => u.id === unitId) || null;
+    }
+
+    /**
+     * Set canvas size to viewport dimensions
+     */
+    _resizeCanvas() {
+        this.canvas.width = this.camera.width;
+        this.canvas.height = this.camera.height;
+    }
+
+    /**
+     * Center camera on the map
+     */
+    _centerCamera() {
+        const bounds = this.tileMap.getWorldBounds();
+        this.camera.x = Math.max(0, (bounds.width - this.camera.width) / 2);
+        this.camera.y = Math.max(0, (bounds.height - this.camera.height) / 2);
+        this._clampCamera();
+    }
+
+    /**
+     * Clamp camera to map bounds
+     */
+    _clampCamera() {
+        const bounds = this.tileMap.getWorldBounds();
+        const maxX = Math.max(0, bounds.width - this.camera.width);
+        const maxY = Math.max(0, bounds.height - this.camera.height);
+
+        this.camera.x = Math.max(0, Math.min(this.camera.x, maxX));
+        this.camera.y = Math.max(0, Math.min(this.camera.y, maxY));
+    }
+
+    /**
+     * Convert screen coordinates to world coordinates
+     */
+    screenToWorld(screenX, screenY) {
+        return {
+            x: screenX + this.camera.x,
+            y: screenY + this.camera.y
+        };
+    }
+
+    /**
+     * Convert world coordinates to screen coordinates
+     */
+    worldToScreen(worldX, worldY) {
+        return {
+            x: worldX - this.camera.x,
+            y: worldY - this.camera.y
+        };
+    }
+
+    /**
+     * Setup mouse and keyboard input handlers
+     */
+    _setupInputHandlers() {
+        // Mouse move - update hovered tile
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+
+            // Handle dragging
+            if (this.isDragging) {
+                const dx = e.clientX - this.dragStart.x;
+                const dy = e.clientY - this.dragStart.y;
+                this.camera.x = this.cameraStart.x - dx;
+                this.camera.y = this.cameraStart.y - dy;
+                this._clampCamera();
+            }
+
+            // Update hovered tile
+            const world = this.screenToWorld(screenX, screenY);
+            const gridPos = this.tileMap.worldToGrid(world.x, world.y);
+            this.hoveredTile = this.tileMap.getTile(gridPos.x, gridPos.y);
+        });
+
+        // Mouse leave
+        this.canvas.addEventListener('mouseleave', () => {
+            this.hoveredTile = null;
+            this.isDragging = false;
+        });
+
+        // Mouse down - start drag
+        this.canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 1 || e.button === 2) {  // Middle or right click
+                this.isDragging = true;
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.cameraStart = { x: this.camera.x, y: this.camera.y };
+                e.preventDefault();
+            }
+        });
+
+        // Mouse up - end drag
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 1 || e.button === 2) {
+                this.isDragging = false;
+            }
+        });
+
+        // Prevent context menu on right-click
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Left click - select tile
+        this.canvas.addEventListener('click', (e) => {
+            if (this.hoveredTile && !this.isDragging) {
+                console.log('Clicked tile:', this.hoveredTile.toJSON());
+                window.dispatchEvent(new CustomEvent('tileClicked', {
+                    detail: this.hoveredTile.toJSON()
+                }));
+            }
+        });
+
+        // Keyboard - WASD panning
+        window.addEventListener('keydown', (e) => {
+            if (['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key)) {
+                this.keysPressed.add(e.key.toLowerCase());
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            this.keysPressed.delete(e.key.toLowerCase());
+        });
+
+        // Mouse wheel - future zoom support (for now just pan up/down)
+        this.canvas.addEventListener('wheel', (e) => {
+            this.camera.y += e.deltaY * 0.5;
+            this.camera.x += e.deltaX * 0.5;
+            this._clampCamera();
+            e.preventDefault();
+        }, { passive: false });
+    }
+
+    /**
+     * Update camera based on keyboard input
+     */
+    _updateCamera(deltaTime) {
+        const speed = this.panSpeed * deltaTime;
+
+        if (this.keysPressed.has('w')) this.camera.y -= speed;
+        if (this.keysPressed.has('s')) this.camera.y += speed;
+        if (this.keysPressed.has('a')) this.camera.x -= speed;
+        if (this.keysPressed.has('d')) this.camera.x += speed;
+
+        if (this.keysPressed.size > 0) {
+            this._clampCamera();
+        }
+    }
+
+    /**
+     * Get fill color for a tile
+     */
+    _getTileColor(tile) {
+        if (tile.zoneId && tile.type === GridConfig.TILE_TYPE.FLOOR) {
+            const zone = this.tileMap.getZone(tile.zoneId);
+            if (zone && zone.color) return zone.color;
+        }
+        return this.colors[tile.type] || this.colors[GridConfig.TILE_TYPE.VOID];
+    }
+
+    /**
+     * Render the visible portion of the grid
+     */
+    render() {
+        const ctx = this.ctx;
+        const ts = this.tileSize;
+
+        // Calculate visible tile range
+        const startX = Math.floor(this.camera.x / ts);
+        const startY = Math.floor(this.camera.y / ts);
+        const endX = Math.ceil((this.camera.x + this.camera.width) / ts);
+        const endY = Math.ceil((this.camera.y + this.camera.height) / ts);
+
+        // Clear canvas
+        ctx.fillStyle = this.colors[GridConfig.TILE_TYPE.VOID];
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Draw only visible tiles
+        for (let y = startY; y <= endY; y++) {
+            for (let x = startX; x <= endX; x++) {
+                const tile = this.tileMap.getTile(x, y);
+                if (!tile) continue;
+
+                // World to screen conversion
+                const screen = this.worldToScreen(x * ts, y * ts);
+                const px = screen.x;
+                const py = screen.y;
+
+                // Base tile fill
+                ctx.fillStyle = this._getTileColor(tile);
+                ctx.fillRect(px, py, ts, ts);
+
+                // Wall rendering
+                if (tile.type === GridConfig.TILE_TYPE.WALL) {
+                    ctx.fillStyle = this.colors.wallOutline;
+                    ctx.fillRect(px, py, ts, ts);
+                    ctx.fillStyle = this.colors[GridConfig.TILE_TYPE.WALL];
+                    ctx.fillRect(px + 1, py + 1, ts - 2, ts - 2);
+                }
+
+                // Door rendering
+                if (tile.type === GridConfig.TILE_TYPE.DOOR) {
+                    ctx.fillStyle = this.colors[GridConfig.TILE_TYPE.DOOR];
+                    ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+
+                    if (tile.doorState === 'OPEN') {
+                        ctx.fillStyle = this._getTileColor({
+                            type: GridConfig.TILE_TYPE.FLOOR,
+                            zoneId: tile.zoneId
+                        });
+                        ctx.fillRect(px + 4, py + 4, ts - 8, ts - 8);
+                    }
+                }
+
+                // Visibility overlay
+                if (tile.visibility === GridConfig.VISIBILITY.HIDDEN) {
+                    ctx.fillStyle = this.colors.hiddenOverlay;
+                    ctx.fillRect(px, py, ts, ts);
+                } else if (tile.visibility === GridConfig.VISIBILITY.REVEALED) {
+                    ctx.fillStyle = this.colors.revealedOverlay;
+                    ctx.fillRect(px, py, ts, ts);
+                }
+
+                // Grid lines
+                ctx.strokeStyle = this.colors.gridLine;
+                ctx.strokeRect(px, py, ts, ts);
+            }
+        }
+
+        // Highlight hovered tile
+        if (this.hoveredTile) {
+            const screen = this.worldToScreen(
+                this.hoveredTile.x * ts,
+                this.hoveredTile.y * ts
+            );
+
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screen.x + 1, screen.y + 1, ts - 2, ts - 2);
+            ctx.lineWidth = 1;
+        }
+
+        // Render vision cones (between tiles and units)
+        this._renderVisionCones();
+
+        // Render units on top of tiles
+        this._renderUnits();
+    }
+
+    /**
+     * Render all units
+     */
+    _renderUnits() {
+        const ctx = this.ctx;
+
+        for (const unit of this.units) {
+            const screenPos = unit.getScreenPos(this.camera);
+
+            // Skip if off-screen
+            if (screenPos.x < -20 || screenPos.x > this.camera.width + 20 ||
+                screenPos.y < -20 || screenPos.y > this.camera.height + 20) {
+                continue;
+            }
+
+            const radius = unit.radius || 12;
+
+            // Draw waiting indicator (pulsing red ring)
+            if (unit.state === 'WAITING') {
+                const pulse = 1 + Math.sin(performance.now() / 200) * 0.2;
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, radius * 1.5 * pulse, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.lineWidth = 1;
+            }
+
+            // Draw unit circle
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = unit.color || '#00ff88';
+            ctx.fill();
+            ctx.strokeStyle = unit.state === 'WAITING' ? '#ff6666' : '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.lineWidth = 1;
+
+            // Draw direction indicator if moving
+            if (unit.isMoving && unit.currentTarget) {
+                const targetScreen = this.worldToScreen(
+                    unit.currentTarget.x,
+                    unit.currentTarget.y
+                );
+                const dx = targetScreen.x - screenPos.x;
+                const dy = targetScreen.y - screenPos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > 5) {
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    ctx.beginPath();
+                    ctx.moveTo(screenPos.x, screenPos.y);
+                    ctx.lineTo(screenPos.x + nx * 20, screenPos.y + ny * 20);
+                    ctx.strokeStyle = '#ffcc00';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.lineWidth = 1;
+                }
+            }
+        }
+    }
+
+    /**
+     * Update all units (call with deltaTime)
+     */
+    updateUnits(deltaTime) {
+        for (const unit of this.units) {
+            unit.update(deltaTime);
+        }
+    }
+
+    /**
+     * Add a vision cone to render
+     * @param {VisionCone} cone - The vision cone
+     * @param {Object} config - Rendering config
+     */
+    addVisionCone(cone, config = {}) {
+        this.visionCones.push({
+            cone,
+            color: config.color || 'rgba(255, 100, 100, 0.3)',
+            alertColor: config.alertColor || 'rgba(255, 50, 50, 0.5)'
+        });
+    }
+
+    /**
+     * Remove a vision cone
+     */
+    removeVisionCone(cone) {
+        this.visionCones = this.visionCones.filter(vc => vc.cone !== cone);
+    }
+
+    /**
+     * Render all vision cones
+     */
+    _renderVisionCones() {
+        const ctx = this.ctx;
+
+        for (const { cone, color, alertColor } of this.visionCones) {
+            const vertices = cone.getConeVertices();
+            if (vertices.length < 3) continue;
+
+            // Convert to screen coordinates
+            const screenVerts = vertices.map(v => this.worldToScreen(v.x, v.y));
+
+            // Determine color based on detection state
+            let hasDetection = false;
+            for (const [targetId, value] of cone.detectionMeters) {
+                if (value > 0.3) {
+                    hasDetection = true;
+                    break;
+                }
+            }
+
+            // Draw filled cone
+            ctx.beginPath();
+            ctx.moveTo(screenVerts[0].x, screenVerts[0].y);
+            for (let i = 1; i < screenVerts.length; i++) {
+                ctx.lineTo(screenVerts[i].x, screenVerts[i].y);
+            }
+            ctx.closePath();
+
+            ctx.fillStyle = hasDetection ? alertColor : color;
+            ctx.fill();
+
+            // Draw cone outline
+            ctx.strokeStyle = hasDetection ? 'rgba(255, 50, 50, 0.8)' : 'rgba(255, 200, 200, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+    }
+
+    /**
+     * Start render loop with delta time
+     */
+    startRenderLoop() {
+        const loop = (currentTime) => {
+            const deltaTime = (currentTime - this.lastFrameTime) / 1000;
+            this.lastFrameTime = currentTime;
+
+            this._updateCamera(deltaTime);
+            this.updateUnits(deltaTime);  // Update unit positions
+            this.render();
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+    }
+
+    /**
+     * Set viewport dimensions
+     */
+    setViewport(width, height) {
+        this.camera.width = width;
+        this.camera.height = height;
+        this._resizeCanvas();
+        this._clampCamera();
+    }
+
+    /**
+     * Update the tile map reference
+     */
+    setTileMap(tileMap) {
+        this.tileMap = tileMap;
+        this.units = [];  // Clear units when map changes
+        this._centerCamera();
+    }
+
+    /**
+     * Pan to a specific grid position
+     */
+    panTo(gridX, gridY) {
+        const world = this.tileMap.gridToWorld(gridX, gridY);
+        this.camera.x = world.x - this.camera.width / 2;
+        this.camera.y = world.y - this.camera.height / 2;
+        this._clampCamera();
+    }
+}
+
