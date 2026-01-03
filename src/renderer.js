@@ -12,7 +12,7 @@ import GameManager from './game/GameManager';
 import { MapGenerator } from './game/MapGenerator';
 import { SimulationEngine } from './game/SimulationEngine';
 import { JobBoardUI } from './ui/JobBoardUI';
-import { GridRenderer, TestMapGenerator, Pathfinder, Unit, VisionCone, GridConfig } from './game/grid/index.js';
+import { GridRenderer, TestMapGenerator, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine } from './game/grid/index.js';
 
 console.log('Renderer process started. Initializing Command Center...');
 
@@ -118,9 +118,51 @@ function initTileGrid() {
   setupReroute(testUnit);
   setupReroute(testUnit2);
 
+  // Set pathfinder reference for TaskController
+  testUnit.setPathfinder(pathfinder);
+  testUnit2.setPathfinder(pathfinder);
+
   // Track selected unit for movement commands
   window.selectedUnit = testUnit;
   window.allUnits = [testUnit, testUnit2];
+
+  // Expose Task and signalBus for console testing
+  window.Task = Task;
+  window.signalBus = signalBus;
+
+  // Initialize Radio Controller with units and exit point
+  radioController.registerUnits([testUnit, testUnit2]);
+  radioController.setExitTile({ x: 15, y: 28 });  // Near map entrance
+  window.radioController = radioController;
+  window.threatClock = threatClock;
+
+  // Initialize Sector Manager with intel costs per zone
+  const sectorManager = new SectorManager(tileMap);
+  sectorManager.defineSector('lobby', { intelCost: 1, difficulty: 1 });
+  sectorManager.defineSector('hallway', { intelCost: 1, difficulty: 1 });
+  sectorManager.defineSector('office', { intelCost: 2, difficulty: 2 });
+  sectorManager.defineSector('security', { intelCost: 3, difficulty: 3 });
+  sectorManager.defineSector('server', { intelCost: 3, difficulty: 3 });
+  sectorManager.defineSector('vault', { intelCost: 4, difficulty: 4 });
+  // Reveal lobby by default for testing
+  sectorManager.purchaseIntel('lobby');
+  sectorManager.purchaseIntel('hallway');
+  window.sectorManager = sectorManager;
+
+  // Initialize Arrangement Engine with sample assets
+  arrangementEngine.loadSampleArrangements();
+  window.arrangementEngine = arrangementEngine;
+
+  // Initialize heist phase state (PLANNING until player clicks EXECUTE HEIST)
+  window.heistPhase = 'PLANNING';  // PLANNING | EXECUTING
+  threatClock.pause();  // Clock paused during planning
+
+  // Listen for heist start
+  window.addEventListener('startHeist', () => {
+    window.heistPhase = 'EXECUTING';
+    threatClock.resume();
+    console.log('[Heist] EXECUTION PHASE STARTED!');
+  });
 
   // Start render loop
   gridRenderer.startRenderLoop();
@@ -132,6 +174,23 @@ function initTileGrid() {
     const now = performance.now();
     const deltaTime = (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
+
+    // Update TaskController for each crew unit
+    for (const unit of window.allUnits) {
+      unit.taskController.update(deltaTime);
+    }
+
+    // Update ThreatClock (only during execution phase)
+    if (window.heistPhase === 'EXECUTING') {
+      threatClock.update(deltaTime);
+    }
+
+    // Apply threat modifiers to guard vision
+    const modifiers = threatClock.getModifiers();
+    if (guardVision) {
+      guardVision.fov = modifiers.fov;
+      guardVision.detectionRate = modifiers.detectionRate;
+    }
 
     // Rotate guard vision slowly (for demo)
     const angle = (Date.now() / 50) % 360;

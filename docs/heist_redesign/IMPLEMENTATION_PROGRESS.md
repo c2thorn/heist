@@ -1,203 +1,274 @@
-# Project CLOCKWORK - Implementation Progress & Handoff Notes
+# Project CLOCKWORK - Implementation Handoff
 
-**Last Updated:** 2026-01-03T12:05:00  
-**Session Status:** Phases 1-5 Complete
-
----
-
-## Overview
-
-This document tracks the implementation of the heist game redesign from a node-based system to a tile-grid architecture. The work is based on specs SPEC_001 through SPEC_005 in this folder.
+> **Last Updated**: 2026-01-03 | **Status**: Core Complete, Polish Remaining
 
 ---
 
-## Implementation Phases
+## Completed Features
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| **Phase 1: Core Grid Architecture** | ✅ Complete | Tile grid foundation |
-| **Phase 2: Rendering & Input** | ✅ Complete | Canvas renderer with camera/pan |
-| **Phase 3: Pathfinding & Movement** | ✅ Complete | A* pathfinding, smooth movement |
-| **Phase 4: Collision & Reservation** | ✅ Complete | Tile reservations, wait states |
-| **Phase 5: Vision & Stealth** | ✅ Complete | Vision cones, raycasting, detection |
-| **Phase 6: Command Queue & AI** | ⏳ Next | Task queue, crew autonomy |
-| **Phase 7: Economy, Time & Radio** | ⬜ Pending | Time pressure, radio commands |
-| **Phase 8: Intel & Arrangements** | ⬜ Pending | Pre-heist setup, entry points |
-| **Phase 9: Integration & Polish** | ⬜ Pending | Wire up to full game flow |
+### Phase 1-5: Foundation ✅
+- 2D tile grid with zones and visibility states
+- A* pathfinding with collision avoidance
+- Smooth unit movement with tile reservation
+- Vision cones with raycasting and detection meters
 
----
+### Phase 6: Command Queue ✅
+- `Task.js` - MOVE, WAIT, SIGNAL task types
+- `TaskController.js` - Per-unit queue processing
+- `SignalBus.js` - Task dependency system
 
-## Files Created (src/game/grid/)
+### Phase 7: Economy & Radio ✅
+- `ThreatClock.js` - 4-zone escalation (CASUAL→ALERT→LOCKDOWN→SWAT)
+- `RadioController.js` - SILENT_RUNNING, GO_LOUD, SCRAM stances
+- Guard modifiers applied based on threat zone
 
-| File | Purpose |
-|------|---------|
-| `GridConfig.js` | Constants: TILE_SIZE (32px), TILE_TYPE, VISIBILITY states, TERRAIN, MOVEMENT_COST |
-| `Tile.js` | Tile schema: type, terrain, walkability, cover, transparency, visibility, occupancy, reservations |
-| `TileMap.js` | 2D grid management: coordinate conversion, zone management, visibility control |
-| `TestMapGenerator.js` | Sample building generator for testing (lobby, hallways, offices, vault) |
-| `GridRenderer.js` | Canvas renderer: camera/viewport, panning (WASD/drag/scroll), units, vision cones |
-| `Pathfinder.js` | EasyStar.js A* wrapper with tile costs and avoid points |
-| `Unit.js` | Movable entity: dual position (grid/world), movement interpolation, corner cutting, reservation states |
-| `VisionCone.js` | Vision detection: cone geometry, Supercover raycasting, detection meter, cover mechanics |
-| `index.js` | Exports all modules |
+### Phase 8: Intel & Arrangements ✅
+- `SectorManager.js` - Zone-based intel reveal
+- `ArrangementEngine.js` - STATIC_MODIFIER, TRIGGERED_ABILITY types
+
+### Phase 9: UI Integration ✅
+- Radio Panel with stance buttons
+- Threat Bar with zone indicators
+- Planning vs Execution phase state
 
 ---
 
-## Current Test Scaffolding
+## Deferred Items
 
-The main game (`src/renderer.js`) has temporary test controls:
+### 1. INTERACT Task Type
+**SPEC**: 003 | **Priority**: High | **Effort**: 2-3 days
 
-| Control | Purpose | Final Product |
-|---------|---------|---------------|
-| Press `1` / `2` | Select green/orange unit | Will be crew portraits in command deck |
-| Click tile | Move selected unit there | Will be "assign MOVE_TO task" |
-| WASD | Pan camera | Probably mouse drag / edge scroll only |
+Currently defined but not implemented. Needs interactable object system.
 
-These are **scaffolding for testing** the low-level systems. The final game uses a **Task Queue** system where players assign tasks to crew, and crew execute autonomously.
+**Implementation Plan**:
+```
+1. Create Interactable base class
+   - Properties: position, interactionTime, requiredTool, skillCheckDC
+   - Methods: canInteract(unit), startInteraction(), completeInteraction()
 
----
+2. Create subclasses:
+   - Door (locked/unlocked, can be lockpicked)
+   - Computer (hack for intel)
+   - Safe (open for loot)
+   - SecurityPanel (disable cameras)
 
-## User Preferences & Decisions
+3. Extend TaskController to handle INTERACT:
+   - Move to adjacent tile
+   - Show interaction progress bar
+   - Apply skill check (see item 3)
+   - Trigger effect on success
 
-1. **Rendering:** Canvas (not SVG or Phaser) for tile grid
-2. **Testing:** User performs all verification manually; I do not auto-launch browser tests
-3. **Building Visuals:** Blueprint aesthetic with distinct room colors
-4. **Phases 4 & 5:** Can be developed in parallel (no dependency between them)
-5. **Entry Point Assignment:** Noted for Phase 8 implementation
-6. **Server Command:** Use `npm run dev` (Vite only) instead of `npm start` (Electron window)
+4. Add interactables to TestMapGenerator
+```
 
----
-
-## What Each Phase Implemented
-
-### Phase 1: Core Grid Architecture
-- `GridConfig.js` with tile constants (32px tiles, types, terrains)
-- `Tile.js` with full schema per SPEC_001
-- `TileMap.js` with coordinate conversion (gridToWorld/worldToGrid)
-- `TestMapGenerator.js` producing 32×32 test building
-- Tri-state visibility (HIDDEN/REVEALED/VISIBLE)
-
-### Phase 2: Rendering & Input
-- Canvas-based `GridRenderer.js`
-- Camera/viewport system with panning
-- WASD keyboard, right-click drag, scroll wheel pan
-- Tile hover highlighting, click events
-- Zone-based floor coloring
-
-### Phase 3: Pathfinding & Movement
-- Installed `easystarjs` npm package
-- `Pathfinder.js` wrapping EasyStar with grid configuration
-- `Unit.js` with dual position tracking
-- Smooth movement interpolation (vector-based)
-- Corner cutting and waypoint tolerance
-- Tile occupancy registration
-
-### Phase 4: Collision & Reservation
-- Look-ahead tile reservation before moving
-- WAITING state when tile is blocked
-- Wait timeout → reroute callback
-- Visual pulsing ring for waiting units
-- Pathfinding avoids occupied tiles
-- Two test units for collision testing
-
-### Phase 5: Vision & Stealth
-- `VisionCone.js` with origin, facing, FOV, range
-- Supercover line algorithm for raycasting
-- Cover mechanics (sneaking behind cover = hidden)
-- Detection meter with accumulation formula
-- UNAWARE → SUSPICIOUS → DETECTED states
-- Visual cone rendering (changes color on detection)
-- Test guard with sweeping vision cone
+**Files to modify**:
+- `src/game/grid/TaskController.js` - Add INTERACT handling
+- `src/game/grid/Interactable.js` - NEW
+- `src/game/grid/TestMapGenerator.js` - Place interactables
 
 ---
 
-## Next Steps: Phase 6 (Command Queue & AI)
+### 2. Skill Check System
+**SPEC**: 004 | **Priority**: Medium | **Effort**: 1 day
 
-Per SPEC_003, implement:
+Per SPEC_004, interactions require 2d6 + modifier vs DC.
 
-1. **Task Queue Data Structure**
-   - Task types: MOVE_TO, INTERACT, WAIT, LOOT, SIGNAL
-   - Queue per crew member
-   - Priority/interrupt system
+**Implementation Plan**:
+```javascript
+// src/game/grid/SkillCheck.js
+class SkillCheck {
+  static roll(modifier, dc) {
+    const roll = Math.floor(Math.random() * 6) + 1 + 
+                 Math.floor(Math.random() * 6) + 1;
+    const total = roll + modifier;
+    return {
+      success: total >= dc,
+      roll,
+      total,
+      margin: total - dc
+    };
+  }
+}
+```
 
-2. **Task Execution Loop**
-   - Pop task, execute, advance
-   - Handle task failure/retry
+Integrate with INTERACT task and display result in event log.
 
-3. **Dependency System (Logic Gates)**
-   - WAIT_FOR_SIGNAL, WAIT_FOR_CONDITION
-   - Synchronization between crew
+---
 
-4. **Standard Operating Procedures (SOPs)**
-   - IF_SPOTTED → FLEE/FIGHT behavior
-   - Autonomous reactions
+### 3. SOP Profiles (Autonomous Reactions)
+**SPEC**: 003 | **Priority**: Medium | **Effort**: 2 days
+
+Units should auto-react when detected without player input.
+
+**Implementation Plan**:
+```javascript
+// Unit state machine extension
+const SOP = {
+  AGGRESSIVE: 'Fight back, don\'t flee',
+  CAUTIOUS: 'Take cover, wait for orders',
+  COWARD: 'Flee immediately when spotted'
+};
+
+// In Unit.js, when detection reaches 100%:
+onDetected() {
+  switch (this.sopProfile) {
+    case SOP.COWARD:
+      this.assignTask(Task.move(exitTile.x, exitTile.y));
+      break;
+    case SOP.CAUTIOUS:
+      this.assignTask(Task.move(nearestCover.x, nearestCover.y));
+      break;
+  }
+}
+```
+
+---
+
+### 4. Setup Phase UI
+**SPEC**: 005 | **Priority**: Medium | **Effort**: 2-3 days
+
+Pre-heist screen for spending Intel and Cash.
+
+**Implementation Plan**:
+```
+1. Create SetupPhaseUI.js
+   - Left panel: Map with fog, click sectors to reveal
+   - Right panel: Available arrangements (filtered by revealed sectors)
+   - Bottom: Intel/Cash counters, PROCEED button
+
+2. Flow integration:
+   Contract accepted → Setup Phase → Planning Phase → Execution
+
+3. Wire to existing SectorManager and ArrangementEngine
+```
+
+**Mockup**:
+```
+┌─────────────────────────────────────────────┐
+│  INTEL: 10        SETUP PHASE       CASH: $2000  │
+├─────────────────────┬───────────────────────┤
+│                     │  ARRANGEMENTS         │
+│   [MAP WITH FOG]    │  ○ Bribe Guard ($500) │
+│                     │  ○ Phone Distraction  │
+│   Click to reveal   │  ○ Power Cut ($800)   │
+│   sectors           │                       │
+├─────────────────────┴───────────────────────┤
+│              [ PROCEED TO HEIST ]           │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### 5. PLACED_ITEM Arrangement Type
+**SPEC**: 005 | **Priority**: Low | **Effort**: 1 day
+
+Items placed on map during setup (e.g., distraction device).
+
+**Implementation Plan**:
+```javascript
+// In ArrangementEngine, add handling for PLACED_ITEM
+case ArrangementType.PLACED_ITEM:
+  // During setup, show placement UI
+  // Player clicks tile to place
+  // During heist, item appears on map as interactable
+  break;
+```
+
+Requires Setup Phase UI first.
+
+---
+
+### 6. Command Deck UI
+**SPEC**: 003 | **Priority**: Low | **Effort**: 3-4 days
+
+Visual drag-and-drop interface for task queues.
+
+**Implementation Plan**:
+```
+1. CommandDeckUI.js
+   - Show each crew member as a column
+   - Display queued tasks as cards
+   - Drag to reorder, X to remove
+   - Buttons to add MOVE/WAIT/SIGNAL
+
+2. Wire to TaskController per unit
+
+3. Real-time update as tasks complete
+```
+
+This is the most complex UI piece. Consider using a library for drag-and-drop.
 
 ---
 
 ## Architecture Notes
 
-### Coordinate Systems
+### File Structure
 ```
-Logic Grid: tile coordinates (x, y) integers
-World Space: pixel coordinates (x * 32, y * 32) floats
-Screen Space: world - camera offset
+src/game/grid/
+├── GridConfig.js      # Constants
+├── Tile.js            # Tile data
+├── TileMap.js         # Map container
+├── TestMapGenerator.js
+├── GridRenderer.js    # Canvas drawing
+├── Pathfinder.js      # A* algorithm
+├── Unit.js            # Movable entities
+├── VisionCone.js      # Guard FOV
+├── Task.js            # Task data
+├── TaskController.js  # Queue processor
+├── SignalBus.js       # Dependencies
+├── ThreatClock.js     # Time escalation
+├── RadioController.js # Global commands
+├── SectorManager.js   # Intel system
+├── ArrangementEngine.js # Pre-heist assets
+└── index.js           # Exports
 ```
 
-### Unit State Machine
-```
-IDLE → MOVING → WAITING → REROUTING
-         ↓          ↓
-       arrive    timeout
-```
+### Global State (available on `window`)
+- `window.heistPhase` - 'PLANNING' | 'EXECUTING'
+- `window.selectedUnit` - Currently selected unit
+- `window.allUnits` - All crew units
+- `window.threatClock` - ThreatClock singleton
+- `window.radioController` - RadioController singleton
+- `window.sectorManager` - SectorManager instance
+- `window.arrangementEngine` - ArrangementEngine singleton
 
-### Detection Flow
-```
-Every frame:
-  1. Guard updates VisionCone position/angle
-  2. For each crew:
-     - checkConeArc (distance + angle)
-     - checkLineOfSight (Supercover raycast)
-     - checkCover (sneaking behind cover)
-     - updateDetection (accumulate meter)
-  3. Log state changes
+### Event System
+- `startHeist` - Fired when EXECUTE HEIST clicked
+- `heistEventLog` - For event log entries
+- `gameStateUpdated` - For HUD updates
+
+---
+
+## Testing Notes
+
+All systems can be tested via browser console:
+```javascript
+// Task queue
+testUnit.assignTask(Task.move(10, 15));
+testUnit.assignTasks([Task.move(5,5), Task.wait(2), Task.move(10,10)]);
+
+// Radio
+radioController.goLoud();
+radioController.scram();
+
+// Intel
+sectorManager.purchaseIntel('vault');
+
+// Arrangements
+arrangementEngine.purchase('phone_distraction');
+arrangementEngine.trigger('phone_distraction');
+
+// Threat
+threatClock.addPenalty(30);  // Add 30 seconds
 ```
 
 ---
 
-## File Locations
+## Recommended Next Steps
 
-- **Specs:** `docs/heist_redesign/SPEC_001` through `SPEC_005`
-- **Grid System:** `src/game/grid/`
-- **Main Integration:** `src/renderer.js`
-- **Test Page:** `grid-test.html` (standalone, for debugging)
-- **Package:** Added `easystarjs` dependency, added `npm run dev` script
+1. **INTERACT system** - Opens up actual heist objectives
+2. **Setup Phase UI** - Makes intel/arrangements accessible to players
+3. **SOP profiles** - Adds tactical depth
+4. **Command Deck** - Full task queue visualization
 
----
-
-## How to Run
-
-```bash
-cd c:\Users\Cameron\Documents\projects\heist
-npm run dev
-# Opens Vite at http://localhost:5173/
-# Accept a contract to see the tile grid
-```
-
----
-
-## Summary for Next Agent
-
-You're implementing a heist game redesign. The **first 5 phases are done** with working:
-- Tile-based map rendering
-- A* pathfinding with smooth movement
-- Collision avoidance and tile reservations
-- Vision cones with detection system
-
-**Current test setup:**
-- 2 crew units (green, orange) controllable via keyboard selection
-- 1 guard (red) with sweeping vision cone
-- Click-to-move with pathfinding
-
-**Next:** Phase 6 - Command Queue & AI (Task queues, autonomous crew, SOPs)
-
-The temporary keyboard/click controls will be replaced by the Task Queue UI in Phase 6.
+The game is playable for movement and radio commands. These additions would complete the full SPEC vision.

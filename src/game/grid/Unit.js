@@ -1,4 +1,5 @@
 import { GridConfig } from './GridConfig.js';
+import { TaskController } from './TaskController.js';
 
 /**
  * Movement speeds per stance (pixels per second)
@@ -16,8 +17,9 @@ export const MovementSpeed = {
 export const UnitState = {
     IDLE: 'IDLE',
     MOVING: 'MOVING',
-    WAITING: 'WAITING',     // Blocked by another unit
-    REROUTING: 'REROUTING'  // Finding new path
+    WAITING: 'WAITING',         // Blocked by another unit
+    REROUTING: 'REROUTING',     // Finding new path
+    EXECUTING_TASK: 'EXECUTING_TASK'  // Processing task from queue
 };
 
 /**
@@ -61,6 +63,9 @@ export class Unit {
         // Visual properties
         this.color = '#00ff88';
         this.radius = 12;
+
+        // Task Controller (SPEC_003 - Command Queue)
+        this.taskController = new TaskController(this);
 
         // Register on starting tile
         this._registerOnTile();
@@ -350,5 +355,36 @@ export class Unit {
             return nextTile.occupantId || nextTile.reservationId;
         }
         return null;
+    }
+
+    /**
+     * Set the pathfinder reference for task execution
+     * @param {Pathfinder} pathfinder - Pathfinder instance
+     */
+    setPathfinder(pathfinder) {
+        this.taskController.pathfinder = pathfinder;
+    }
+
+    /**
+     * Add a task to this unit's queue
+     * @param {Task} task - Task to add
+     */
+    assignTask(task) {
+        this.taskController.addTask(task);
+    }
+
+    /**
+     * Add multiple tasks to this unit's queue
+     * @param {Task[]} tasks - Tasks to add
+     */
+    assignTasks(tasks) {
+        this.taskController.addTasks(tasks);
+    }
+
+    /**
+     * Get current task status for UI
+     */
+    getTaskStatus() {
+        return this.taskController.getStatus();
     }
 }

@@ -17,10 +17,7 @@
 <body>
   <!-- SHOP / SAFEHOUSE SCREEN -->
   <div id="shop-screen" style="display:none;">
-    <!-- Header removed, stats moved to Global HUD -->
-
     <div id="shop-columns">
-      <!-- SERVICES (Left) -->
       <div class="shop-column">
         <h2>SERVICES</h2>
         <div id="services-list">
@@ -40,14 +37,10 @@
           </div>
         </div>
       </div>
-
-      <!-- RECRUITMENT (Middle) -->
       <div class="shop-column">
         <h2>RECRUITMENT</h2>
         <div id="recruit-list"></div>
       </div>
-
-      <!-- BLACK MARKET (Right) -->
       <div class="shop-column">
         <h2>BLACK MARKET</h2>
         <div id="gear-list"></div>
@@ -67,9 +60,7 @@
   <!-- UNIFIED GAME LAYER -->
   <div id="game-container">
     <div id="game-map">
-      <!-- New Tile Grid Canvas -->
       <canvas id="tile-grid-canvas"></canvas>
-      <!-- Legacy Node Map (will be hidden when grid is active) -->
       <svg id="map-connections" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="map-nodes"></div>
       <div id="crew-token" class="hidden"></div>
@@ -79,20 +70,15 @@
   <div id="hud-layer">
     <div id="hud-top">
       <div id="resource-hud">
-        <!-- LEFT: Resources -->
         <div class="hud-group">
           <div class="res-item" id="day-display">DAY: 1</div>
           <div class="res-item" id="cash-display">CASH: $1500</div>
           <div class="res-item" id="intel-display">INTEL: 0</div>
         </div>
-
-        <!-- CENTER: Tabs -->
         <div id="view-tabs">
           <button id="btn-view-map" class="active">TACTICAL MAP</button>
           <button id="btn-view-shop">SAFEHOUSE</button>
         </div>
-
-        <!-- RIGHT: Heat -->
         <div class="hud-group right-align">
           <div id="heat-bar-container">
             <label id="heat-label">SYSTEM HEAT: 0%</label>
@@ -104,17 +90,35 @@
       </div>
     </div>
 
-    <!-- ACTION PANEL (Floating Right) -->
-    <div id="action-panel">
-      <button id="execute-btn" disabled>EXECUTE HEIST</button>
+    <!-- THREAT BAR -->
+    <div id="threat-bar-container">
+      <div id="threat-bar">
+        <div id="threat-fill"></div>
+        <div class="zone-marker" style="left: 33.3%"></div>
+        <div class="zone-marker" style="left: 66.6%"></div>
+      </div>
+      <div id="threat-label">⏸ PLANNING — Click EXECUTE to start</div>
+    </div>
 
+    <!-- ACTION PANEL -->
+    <div id="action-panel">
+      <div id="radio-panel" class="disabled">
+        <div class="radio-label">📻 RADIO</div>
+        <div class="radio-buttons">
+          <button id="btn-silent" class="radio-btn" disabled>SILENT</button>
+          <button id="btn-loud" class="radio-btn" disabled>LOUD</button>
+          <button id="btn-scram" class="radio-btn danger" disabled>SCRAM</button>
+        </div>
+        <div id="ability-buttons"></div>
+      </div>
+      <button id="execute-btn" class="ready">EXECUTE HEIST</button>
     </div>
 
     <div id="hud-center">
       <div id="event-log"></div>
     </div>
 
-    <!-- COMMAND DECK (BOTTOM) -->
+    <!-- COMMAND DECK -->
     <div id="command-deck">
       <div class="deck-section" id="active-section">
         <div class="section-label">ACTIVE STACK</div>
@@ -135,19 +139,74 @@
 
   <script type="module" src="/src/renderer.js"></script>
   <script>
-    window.addEventListener('gameStateUpdated', (e) => {
-      const executeBtn = document.getElementById('execute-btn');
-      if (!executeBtn) return;
-      const { isCompletable } = e.detail;
-      executeBtn.disabled = !isCompletable;
-      if (isCompletable) executeBtn.classList.add('ready');
-      else executeBtn.classList.remove('ready');
-    });
-
+    // Execute Heist button handler
     document.getElementById('execute-btn')?.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('startHeist'));
+
+      // Hide execute button
+      const btn = document.getElementById('execute-btn');
+      if (btn) btn.style.display = 'none';
+
+      // Enable radio buttons
+      document.querySelectorAll('.radio-btn').forEach(b => b.disabled = false);
+      document.getElementById('radio-panel')?.classList.remove('disabled');
+      document.getElementById('btn-silent')?.classList.add('active');
     });
 
+    // Radio Panel handlers (only work during EXECUTING phase)
+    document.getElementById('btn-silent')?.addEventListener('click', () => {
+      if (window.heistPhase !== 'EXECUTING' || !window.radioController) return;
+      window.radioController.silentRunning();
+      updateRadioButtons('SILENT_RUNNING');
+    });
+
+    document.getElementById('btn-loud')?.addEventListener('click', () => {
+      if (window.heistPhase !== 'EXECUTING' || !window.radioController) return;
+      window.radioController.goLoud();
+      updateRadioButtons('GO_LOUD');
+    });
+
+    document.getElementById('btn-scram')?.addEventListener('click', () => {
+      if (window.heistPhase !== 'EXECUTING' || !window.radioController) return;
+      window.radioController.scram();
+      updateRadioButtons('SCRAM');
+    });
+
+    function updateRadioButtons(stance) {
+      document.querySelectorAll('.radio-btn').forEach(btn => btn.classList.remove('active'));
+      if (stance === 'SILENT_RUNNING') document.getElementById('btn-silent')?.classList.add('active');
+      if (stance === 'GO_LOUD') document.getElementById('btn-loud')?.classList.add('active');
+      if (stance === 'SCRAM') document.getElementById('btn-scram')?.classList.add('active');
+    }
+
+    // Threat Bar update loop
+    setInterval(() => {
+      if (!window.threatClock) return;
+      const fill = document.getElementById('threat-fill');
+      const label = document.getElementById('threat-label');
+      if (!fill || !label) return;
+
+      // Only update during execution
+      if (window.heistPhase !== 'EXECUTING') {
+        label.textContent = '⏸ PLANNING — Click EXECUTE to start';
+        fill.style.width = '0%';
+        return;
+      }
+
+      const progress = window.threatClock.getOverallProgress() * 100;
+      fill.style.width = `${progress}%`;
+
+      const zoneName = window.threatClock.getZoneName();
+      const time = window.threatClock.getFormattedTime();
+      label.textContent = `${zoneName} — ${time}`;
+
+      label.className = '';
+      if (zoneName === 'ALERT') label.classList.add('alert');
+      if (zoneName === 'LOCKDOWN') label.classList.add('lockdown');
+      if (zoneName === 'SWAT') label.classList.add('swat');
+    }, 100);
+
+    // Event log handler
     window.addEventListener('heistEventLog', (e) => {
       const log = document.getElementById('event-log');
       if (!log) return;

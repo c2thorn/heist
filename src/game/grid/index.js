@@ -11,3 +11,13 @@ export { GridRenderer } from './GridRenderer.js';
 export { Pathfinder } from './Pathfinder.js';
 export { Unit, MovementSpeed, UnitState } from './Unit.js';
 export { VisionCone } from './VisionCone.js';
+export { Task, TaskType, TaskStatus } from './Task.js';
+export { TaskController } from './TaskController.js';
+export { signalBus, SignalBus } from './SignalBus.js';
+export { ThreatClock, ThreatZone, threatClock } from './ThreatClock.js';
+export { RadioController, RadioStance, radioController } from './RadioController.js';
+export { SectorManager, SectorState } from './SectorManager.js';
+export { ArrangementEngine, ArrangementType, arrangementEngine } from './ArrangementEngine.js';
+
+
+

@@ -6,7 +6,6 @@
     width: 100vw;
     height: 100vh;
     z-index: 200;
-    /* Ensure HUD sits above everything, including Map (1) and Shop (150) */
     pointer-events: none;
     display: flex;
     flex-direction: column;
@@ -55,18 +54,15 @@
     padding: 10px 20px;
     display: flex;
     flex-direction: row;
-    /* Horizontal alignment */
     justify-content: space-between;
     align-items: center;
     pointer-events: auto;
     width: 100%;
     z-index: 160;
     background: rgba(0, 0, 0, 0.85);
-    /* Dark background for persistence */
     border-bottom: 1px solid #333;
     box-sizing: border-box;
     height: 60px;
-    /* Fixed height for consistency */
 }
 
 #resource-hud {
@@ -81,17 +77,10 @@
     align-items: center;
     gap: 20px;
     flex: 1;
-    /* Split width */
 }
 
 .hud-group.right-align {
     justify-content: flex-end;
-}
-
-#view-tabs {
-    flex: 0 0 auto;
-    margin: 0 20px;
-    /* Center it visually */
 }
 
 .res-item {
@@ -104,7 +93,6 @@
 
 #cash-display {
     color: #00ff00;
-    /* Money green */
     text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
 }
 
@@ -112,13 +100,17 @@
     color: #ffcc00;
 }
 
-/* Updated Heat Container for horizontal layout */
+#intel-display {
+    color: #00ffff;
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+}
+
+/* --- HEAT BAR --- */
 #heat-bar-container {
     margin: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* Center label over bar */
     gap: 5px;
     width: 200px;
 }
@@ -136,24 +128,45 @@
     background: #333;
     border-radius: 4px;
     overflow: visible;
-    /* Allow glow to spill out */
     position: relative;
     box-shadow: inset 0 0 5px #000;
 }
 
-#intel-display {
-    color: #00ffff;
-    /* Cyan */
-    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+#heat-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: #00ffaa;
+    border-radius: 4px;
+    transition: width 0.3s, background-color 0.3s;
+    position: relative;
 }
 
-/* --- ACTION PANEL (Restored) --- */
+#heat-bar-fill.warning {
+    background: #ffcc00;
+}
+
+#heat-bar-fill.danger {
+    background: #ff4444;
+    animation: heat-pulse 0.5s infinite;
+}
+
+@keyframes heat-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* --- ACTION PANEL --- */
 #action-panel {
     position: absolute;
     right: 40px;
     top: calc((var(--map-height) / 2) + 40px);
-    /* Lowered slightly */
-    /* Center relative to Map Area (65vh) */
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
@@ -195,59 +208,6 @@
 
 #execute-btn.ready:active {
     transform: scale(0.95);
-}
-
-
-
-#heat-bar-fill {
-    width: 0%;
-    height: 100%;
-    background: #00ffaa;
-    border-radius: 4px;
-    transition: width 0.3s, background-color 0.3s;
-    position: relative;
-}
-
-#heat-bar-fill.warning {
-    background: #ffcc00;
-}
-
-#heat-bar-fill.danger {
-    background: #ff4444;
-    animation: heat-pulse 0.5s infinite;
-}
-
-/* Pulsing Heat Effects */
-#heat-bar-fill.high-heat {
-    animation: heat-pulse-fast 1s infinite alternate;
-}
-
-#heat-bar-fill.med-heat {
-    box-shadow: 0 0 10px rgba(200, 0, 255, 0.6);
-}
-
-@keyframes heat-pulse-fast {
-    0% {
-        box-shadow: 0 0 10px rgba(255, 50, 0, 0.8);
-    }
-
-    100% {
-        box-shadow: 0 0 25px rgba(255, 100, 0, 1);
-    }
-}
-
-@keyframes heat-pulse {
-    0% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.6;
-    }
-
-    100% {
-        opacity: 1;
-    }
 }
 
 /* --- EVENT LOG --- */
@@ -300,4 +260,177 @@
         transform: translateX(0);
         opacity: 1;
     }
+}
+
+/* --- THREAT BAR --- */
+#threat-bar-container {
+    width: 100%;
+    padding: 5px 20px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.6);
+    border-bottom: 1px solid #333;
+    pointer-events: auto;
+}
+
+#threat-bar {
+    width: 100%;
+    height: 12px;
+    background: #1a1a1a;
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 5px #000;
+}
+
+#threat-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00ff88, #ffcc00, #ff4444);
+    border-radius: 6px;
+    transition: width 0.3s;
+}
+
+.zone-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+#threat-label {
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 2px;
+    font-weight: bold;
+    color: #00ff88;
+    margin-top: 5px;
+    transition: color 0.3s;
+}
+
+#threat-label.alert {
+    color: #ffcc00;
+}
+
+#threat-label.lockdown {
+    color: #ff6600;
+}
+
+#threat-label.swat {
+    color: #ff0000;
+}
+
+/* --- RADIO PANEL --- */
+#radio-panel {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    min-width: 180px;
+}
+
+.radio-label {
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #666;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.radio-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.radio-btn {
+    padding: 10px 15px;
+    border: 2px solid #333;
+    border-radius: 4px;
+    background: #222;
+    color: #888;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.radio-btn:hover {
+    background: #333;
+    color: #fff;
+    border-color: #555;
+}
+
+.radio-btn.active {
+    background: #00ff88;
+    color: #000;
+    border-color: #00ff88;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+}
+
+.radio-btn.danger {
+    border-color: #ff4444;
+    color: #ff4444;
+}
+
+.radio-btn.danger:hover {
+    background: #ff4444;
+    color: #000;
+}
+
+.radio-btn.danger.active {
+    background: #ff4444;
+    color: #fff;
+    animation: pulse-danger 0.5s infinite alternate;
+}
+
+@keyframes pulse-danger {
+    from {
+        box-shadow: 0 0 10px rgba(255, 68, 68, 0.4);
+    }
+
+    to {
+        box-shadow: 0 0 20px rgba(255, 68, 68, 0.8);
+    }
+}
+
+/* --- ABILITY BUTTONS --- */
+#ability-buttons {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ability-btn {
+    padding: 8px 12px;
+    border: 1px solid #00ffff;
+    border-radius: 4px;
+    background: rgba(0, 255, 255, 0.1);
+    color: #00ffff;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ability-btn:hover {
+    background: rgba(0, 255, 255, 0.3);
+}
+
+.ability-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* --- PLANNING PHASE STATES --- */
+#radio-panel.disabled {
+    opacity: 0.5;
+}
+
+#radio-panel.disabled .radio-btn {
+    cursor: not-allowed;
 }
