@@ -1,0 +1,293 @@
+/* --- COMMAND DECK (BOTTOM) --- */
+#command-deck {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 35vh;
+    background: rgba(10, 10, 15, 0.95);
+    border-top: 2px solid #333;
+    display: flex;
+    z-index: 200;
+    /* Higher than shop (150) */
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.deck-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 15px;
+    overflow: hidden;
+}
+
+#stash-section {
+    flex: 0.5;
+}
+
+.section-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #ffcc00;
+    text-transform: uppercase;
+    font-weight: bold;
+    margin-bottom: 8px;
+    opacity: 0.7;
+}
+
+.deck-list {
+    /* GRID LAYOUT FIX: 2 Columns */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    overflow-y: auto;
+    padding-bottom: 5px;
+    padding-right: 10px;
+    /* Space for scrollbar */
+    box-sizing: border-box;
+}
+
+/* Custom Scrollbar for Deck List */
+.deck-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.deck-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.deck-list::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+.deck-list::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+.deck-divider {
+    width: 2px;
+    background: #333;
+    margin: 10px 0;
+}
+
+/* COMPACT CARD STYLES */
+.crew-card-compact {
+    background: linear-gradient(135deg, #222, #111);
+    border: 1px solid #444;
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    /* Take full width of grid cell */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    user-select: none;
+}
+
+.crew-card-compact:hover {
+    background: #2a2a2a;
+    border-color: #666;
+}
+
+.crew-card-compact.selected {
+    border-color: #ffcc00;
+    background: linear-gradient(135deg, #332b00, #1a1500);
+    box-shadow: 0 0 10px rgba(255, 204, 0, 0.2);
+}
+
+.crew-card-compact.locked {
+    opacity: 0.6;
+    pointer-events: none;
+    filter: grayscale(0.8);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+}
+
+.card-name {
+    font-weight: bold;
+    color: #fff;
+    font-size: 14px;
+}
+
+.card-role {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 1px;
+}
+
+.card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    font-size: 10px;
+    /* Slightly smaller to fit full names */
+    color: #ccc;
+    font-family: monospace;
+}
+
+.card-stats .highlight {
+    color: #ffcc00;
+    font-weight: bold;
+}
+
+.card-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px dashed #333;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.equip-row-mini {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.ability-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 255, 170, 0.1);
+    border: 1px solid rgba(0, 255, 170, 0.2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: #00ffaa;
+    flex: 0 0 60%;
+    min-width: 0;
+    cursor: help;
+    transition: all 0.2s;
+    justify-content: center;
+}
+
+.ability-badge:hover {
+    background: rgba(0, 255, 170, 0.15);
+    border-color: rgba(0, 255, 170, 0.4);
+    color: #fff;
+}
+
+.ability-icon {
+    font-size: 11px;
+}
+
+.ability-name {
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.crew-card-compact.selected .ability-badge {
+    background: rgba(255, 204, 0, 0.1);
+    border-color: rgba(255, 204, 0, 0.3);
+    color: #ffcc00;
+}
+
+/* Stash Styles */
+.stash-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #333;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #ccc;
+    height: fit-content;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stash-item:hover {
+    background: rgba(255, 204, 0, 0.1);
+    border-color: #555;
+    color: #fff;
+}
+
+.stash-icon {
+    font-size: 14px;
+}
+
+.stash-name {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Equipment Selection & Slots */
+.stash-item.selected {
+    border-color: #ffcc00;
+    box-shadow: 0 0 10px rgba(255, 204, 0, 0.4);
+    animation: itemPulse 1.5s infinite ease-in-out;
+}
+
+@keyframes itemPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 5px rgba(255, 204, 0, 0.2);
+    }
+
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 15px rgba(255, 204, 0, 0.6);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 5px rgba(255, 204, 0, 0.2);
+    }
+}
+
+.equip-slot {
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px dashed #444;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #444;
+    cursor: default;
+    transition: all 0.2s;
+}
+
+.equip-slot.highlight {
+    border-color: #ffcc00;
+    background: rgba(255, 204, 0, 0.05);
+    color: #ffcc00;
+    cursor: pointer;
+}
+
+.equip-slot.occupied {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #555;
+    color: #ccc;
+    cursor: pointer;
+}
+
+.equip-slot.occupied:hover {
+    border-color: #ff4444;
+    color: #ff4444;
+}

@@ -1,0 +1,175 @@
+/* --- GAME RESULTS MODAL --- */
+#game-results-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    /* Nuclear Option - Always on Top */
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+#results-modal {
+    background: #111;
+    border: 1px solid #333;
+    padding: 60px;
+    text-align: center;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 1);
+}
+
+#results-title {
+    font-size: 48px;
+    margin: 0 0 20px 0;
+    letter-spacing: 5px;
+}
+
+#results-msg {
+    color: #888;
+    margin-bottom: 40px;
+    font-size: 18px;
+}
+
+#results-btn {
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+#results-btn:hover {
+    transform: scale(1.05);
+}
+
+/* --- AFTER ACTION REPORT (AAR) --- */
+.aar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.aar-summary {
+    display: flex;
+    gap: 30px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 10px 30px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #444;
+}
+
+.aar-stat {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ccc;
+    letter-spacing: 1px;
+}
+
+.aar-timeline {
+    width: 100%;
+    flex: 1;
+    overflow-y: auto;
+    border-top: 2px solid #333;
+    border-bottom: 2px solid #333;
+    background: rgba(0, 0, 0, 0.2);
+    margin-bottom: 20px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.aar-step {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 4px solid #555;
+    padding: 10px 15px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.aar-step:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.step-time {
+    font-size: 12px;
+    color: #888;
+    width: 50px;
+    text-transform: uppercase;
+}
+
+.step-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.step-name {
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.step-type {
+    font-size: 10px;
+    color: #aaa;
+    margin-left: 5px;
+}
+
+.step-result {
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.step-rewards {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.step-loot {
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.step-heat {
+    color: #ff4444;
+    font-size: 12px;
+}
+
+.aar-btn {
+    background: #ffcc00;
+    color: #000;
+    border: none;
+    padding: 12px 40px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.aar-btn:hover {
+    transform: scale(1.05);
+    background: #ffdb4d;
+}

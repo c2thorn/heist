@@ -17,6 +17,7 @@ export class MapRenderer {
 
         // Global Event Listeners
         window.addEventListener('nextDayStarted', () => this.generateAndRender());
+        window.addEventListener('mapLoaded', () => this.generateAndRender()); // FIX: Listen for contract load
         window.addEventListener('startHeist', () => this.handleStartHeist());
         window.addEventListener('gameStateUpdated', () => this.updatePathVisuals());
         window.addEventListener('intelPurchased', () => this.refreshAllNodes());
@@ -31,10 +32,17 @@ export class MapRenderer {
         if (logArea) logArea.innerHTML = '';
 
         let mapData = GameManager.gameState.map;
+
+        // If no map (Job Board mode), clear and return
         if (!mapData) {
-            mapData = MapGenerator.generateStaticLevel(0, window.innerHeight);
-            GameManager.gameState.map = mapData;
+            this.nodesLayer.innerHTML = '';
+            this.svgLayer.innerHTML = '';
+            this.nodeElements.clear();
+            this.edgeElements.clear();
+            this.hideCrewToken();
+            return;
         }
+
         this.renderMap(mapData);
         this.hideCrewToken();
     }
@@ -107,6 +115,13 @@ export class MapRenderer {
             iconChar = "❓";
         }
 
+        // Loot Indicator
+        let lootIndicator = "";
+        // Show loot if revealed, OR if it's the Vault (Objective is known)
+        if ((!isHidden || node.type === 'VAULT') && node.properties?.hasLoot) {
+            lootIndicator = `<div class="loot-marker">💰</div>`;
+        }
+
         let statDisplay = "";
         if (!isHidden && node.properties && node.properties.statCheck) {
             statDisplay = `<div class="node-stat">${node.properties.statCheck} ${node.properties.difficulty}</div>`;
@@ -115,6 +130,7 @@ export class MapRenderer {
         el.innerHTML = `
             <div class="node-content">
                 <div class="node-icon">${iconChar}</div>
+                ${lootIndicator}
             </div>
             <div class="node-label">${label}</div>
             ${statDisplay}
@@ -317,38 +333,74 @@ export class MapRenderer {
 
     showGameOver(isSuccess, msg) {
         const screen = document.getElementById('game-results-screen');
-        const title = document.getElementById('results-title');
-        const msgEl = document.getElementById('results-msg');
-        const btn = document.getElementById('results-btn');
+        // We will rebuild the inner content entirely for the AAR
 
-        if (screen && title && msgEl && btn) {
+        if (screen) {
             screen.style.display = 'flex';
-            title.innerText = isSuccess ? "HEIST SUCCESSFUL" : "MISSION FAILED";
-            title.style.color = isSuccess ? "#0f0" : "#f00";
 
-            // Fix: Provide default message
-            const defaultMsg = isSuccess ? "The crew slipped away with the score." : "The alarm was triggered. You were compromised.";
-            msgEl.innerText = msg || defaultMsg;
-
-            // Handle Button Logic
+            // 1. Gather Data
+            const history = GameManager.gameState.simulation.runHistory;
+            const totalLoot = history.reduce((acc, step) => acc + (step.lootGained || 0), 0);
+            const totalHeat = GameManager.gameState.resources.heat;
             const isRunOver = GameManager.gameState.flags.isGameOver || GameManager.gameState.flags.isVictory;
-            btn.innerText = isRunOver ? "NEW RUN" : "GO TO SAFEHOUSE";
 
-            // Clear old listeners by cloning
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
+            // 2. Build Timeline HTML
+            let timelineHTML = history.map((step, index) => {
+                const isFail = step.outcome !== 'SUCCESS';
+                const statusColor = isFail ? '#ff4444' : '#00ffaa';
+                const lootText = step.lootGained > 0 ? `<span class="step-loot">+$${step.lootGained}</span>` : '';
+                const heatText = step.heatAdded > 0 ? `<span class="step-heat">+${step.heatAdded}% Heat</span>` : '';
 
+                return `
+                    <div class="aar-step">
+                        <div class="step-time">Leg ${index + 1}</div>
+                        <div class="step-info">
+                            <div class="step-name">${step.nodeName} <span class="step-type">[${step.nodeType}]</span></div>
+                            <div class="step-result" style="color: ${statusColor}">
+                                ${step.outcome} (${step.details})
+                            </div>
+                        </div>
+                        <div class="step-rewards">
+                            ${lootText}
+                            ${heatText}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 3. Status Header
+            const headerColor = isSuccess ? "#00ffaa" : "#ff4444";
+            const headerText = isSuccess ? "HEIST SUCCESSFUL" : "MISSION FAILED";
+            const btnText = isRunOver ? "NEW RUN" : "GO TO SAFEHOUSE";
+
+            // 4. Render Full Overlay
+            screen.innerHTML = `
+                <div class="aar-container">
+                    <h1 style="color: ${headerColor}">${headerText}</h1>
+                    <div class="aar-summary">
+                        <div class="aar-stat">LOOT SECURED: <span style="color: #ffd700">$${totalLoot}</span></div>
+                        <div class="aar-stat">FINAL HEAT: <span style="color: ${totalHeat > 80 ? '#f00' : '#fff'}">${totalHeat}%</span></div>
+                    </div>
+                    
+                    <div class="aar-timeline">
+                        ${timelineHTML}
+                    </div>
+
+                    <button id="aar-action-btn" class="aar-btn">${btnText}</button>
+                </div>
+            `;
+
+            // 5. Attach Listener to New Button
+            const newBtn = document.getElementById('aar-action-btn');
             newBtn.addEventListener('click', () => {
                 screen.style.display = 'none';
                 if (isRunOver) {
                     GameManager.resetGame();
-                    // Reload map
                     this.generateAndRender();
                 } else {
-                    // Auto-Advance to Next Day Logic
                     import('../ShopManager').then(({ shopManager }) => {
-                        shopManager.startDay(); // Generate new map & difficulty
-                        window.dispatchEvent(new CustomEvent('openShop')); // Go to Base
+                        shopManager.startDay();
+                        window.dispatchEvent(new CustomEvent('openShop'));
                     });
                 }
             });

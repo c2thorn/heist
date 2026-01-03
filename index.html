@@ -17,29 +17,40 @@
 <body>
   <!-- SHOP / SAFEHOUSE SCREEN -->
   <div id="shop-screen" style="display:none;">
-    <div id="shop-header">
-      <h1>THE SAFEHOUSE</h1>
-      <div class="shop-stats">
-        <span id="shop-day">DAY: 1</span>
-        <span id="shop-cash">CASH: $0</span>
-        <span id="shop-heat">HEAT: 0%</span>
+    <!-- Header removed, stats moved to Global HUD -->
+
+    <div id="shop-columns">
+      <!-- SERVICES (Left) -->
+      <div class="shop-column">
+        <h2>SERVICES</h2>
+        <div id="services-list">
+          <div class="shop-item">
+            <div class="shop-item-text">
+              <h3>BUY INTEL</h3>
+              <p>Get 5 Intel to help scout.</p>
+            </div>
+            <button id="buy-intel-btn">BUY ($200)</button>
+          </div>
+          <div class="shop-item">
+            <div class="shop-item-text">
+              <h3>LAUNDER MONEY</h3>
+              <p>Reduce Heat by 20%.</p>
+            </div>
+            <button id="launder-btn">PAY ($500)</button>
+          </div>
+        </div>
       </div>
-    </div>
-    <div id="shop-main">
-      <div class="shop-item">
-        <h3>BUY INTEL</h3>
-        <p>Get 5 Intel to help scout the next map.</p>
-        <button id="buy-intel-btn">BUY ($200)</button>
+
+      <!-- RECRUITMENT (Middle) -->
+      <div class="shop-column">
+        <h2>RECRUITMENT</h2>
+        <div id="recruit-list"></div>
       </div>
-      <div class="shop-item">
-        <h3>LAUNDER MONEY</h3>
-        <p>Bribe officials to reduce Heat by 20%.</p>
-        <button id="launder-btn">LAUNDER ($500)</button>
-      </div>
-      <div class="shop-item">
-        <h3>HIRE SPECIALIST</h3>
-        <p>Expand the team's capabilities (Placeholder).</p>
-        <button disabled>HIRE ($1000)</button>
+
+      <!-- BLACK MARKET (Right) -->
+      <div class="shop-column">
+        <h2>BLACK MARKET</h2>
+        <div id="gear-list"></div>
       </div>
     </div>
   </div>
@@ -65,17 +76,27 @@
   <div id="hud-layer">
     <div id="hud-top">
       <div id="resource-hud">
-        <div class="res-item" id="intel-display">INTEL: 0</div>
+        <!-- LEFT: Resources -->
+        <div class="hud-group">
+          <div class="res-item" id="day-display">DAY: 1</div>
+          <div class="res-item" id="cash-display">CASH: $1500</div>
+          <div class="res-item" id="intel-display">INTEL: 0</div>
+        </div>
+
+        <!-- CENTER: Tabs -->
         <div id="view-tabs">
           <button id="btn-view-map" class="active">TACTICAL MAP</button>
           <button id="btn-view-shop">SAFEHOUSE</button>
         </div>
-        <div class="res-item empty-spacer"></div> <!-- For balancing flex -->
-      </div>
-      <div id="heat-bar-container">
-        <label id="heat-label">SYSTEM HEAT: 0%</label>
-        <div id="heat-bar-bg">
-          <div id="heat-bar-fill"></div>
+
+        <!-- RIGHT: Heat -->
+        <div class="hud-group right-align">
+          <div id="heat-bar-container">
+            <label id="heat-label">SYSTEM HEAT: 0%</label>
+            <div id="heat-bar-bg">
+              <div id="heat-bar-fill"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -83,7 +104,7 @@
     <!-- ACTION PANEL (Floating Right) -->
     <div id="action-panel">
       <button id="execute-btn" disabled>EXECUTE HEIST</button>
-      <div id="intel-brief-mini"></div>
+
     </div>
 
     <div id="hud-center">
@@ -97,9 +118,14 @@
         <div id="active-list-panel" class="deck-list"></div>
       </div>
       <div class="deck-divider"></div>
-      <div class="deck-section" id="roster-section">
+      <div id="roster-section" class="deck-section">
         <div class="section-label">RESERVES</div>
         <div id="roster-list-panel" class="deck-list"></div>
+      </div>
+      <div class="deck-divider"></div>
+      <div id="stash-section" class="deck-section">
+        <div class="section-label">STASH</div>
+        <div id="stash-list-panel" class="deck-list"></div>
       </div>
     </div>
   </div>

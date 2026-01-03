@@ -1,0 +1,165 @@
+/* --- SHOP SCREEN --- */
+#shop-screen {
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
+    height: calc(100vh - 35vh - 60px);
+    /* Fill remaining space exactly */
+    z-index: 150;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    padding: 15px 40px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border-bottom: 2px solid #333;
+}
+
+/* --- SHOP LAYOUT --- */
+#shop-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+.shop-column {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    height: 100%;
+    box-sizing: border-box;
+    padding-right: 10px;
+    /* Space for scrollbar */
+}
+
+/* Custom Scrollbar for Shop Columns */
+.shop-column::-webkit-scrollbar {
+    width: 10px;
+    /* Slightly wider to accommodate gutter */
+}
+
+.shop-column::-webkit-scrollbar-track {
+    background: transparent;
+    /* Cleaner track */
+    border-right: 4px solid transparent;
+    /* Creates space from the outline */
+}
+
+.shop-column::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 10px;
+    border: 3px solid #000;
+    /* Inset effect: same color as column background */
+    background-clip: padding-box;
+}
+
+.shop-column::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+.shop-column h2 {
+    color: #666;
+    font-size: 14px;
+    letter-spacing: 2px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+    margin-top: 0;
+    text-align: center;
+}
+
+/* --- SHOP CARDS --- */
+.shop-card,
+.shop-item {
+    background: #111;
+    border: 1px solid #333;
+    padding: 15px;
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 100px;
+}
+
+.shop-item {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.shop-item-text {
+    text-align: left;
+}
+
+.shop-item-text h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+}
+
+.shop-item-text p {
+    margin: 5px 0 0 0;
+    font-size: 12px;
+    color: #888;
+}
+
+.shop-card-header {
+    color: #fff;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.shop-card-role {
+    color: #00ffff;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.shop-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #aaa;
+    border-bottom: 1px solid #222;
+    padding: 2px 0;
+}
+
+.shop-card-desc {
+    font-size: 12px;
+    color: #888;
+    font-style: italic;
+}
+
+.shop-buy-btn,
+#buy-intel-btn,
+#launder-btn {
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: auto;
+    /* Push to bottom */
+}
+
+.shop-buy-btn:hover:not(:disabled),
+#buy-intel-btn:hover:not(:disabled),
+#launder-btn:hover:not(:disabled) {
+    background: #ffcc00;
+    color: #000;
+    border-color: #ffcc00;
+}
+
+.shop-buy-btn:disabled,
+#buy-intel-btn:disabled,
+#launder-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

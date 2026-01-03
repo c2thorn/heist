@@ -1,0 +1,15 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: white;
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+:root {
+  --deck-height: 35vh;
+  --map-height: 65vh;
+  /* 100vh - 35vh */
+}

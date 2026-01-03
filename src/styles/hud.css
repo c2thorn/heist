@@ -1,0 +1,303 @@
+/* --- GAME HUD --- */
+#hud-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 200;
+    /* Ensure HUD sits above everything, including Map (1) and Shop (150) */
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- VIEW TABS --- */
+#view-tabs {
+    display: flex;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #333;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0 auto;
+    width: fit-content;
+}
+
+#view-tabs button {
+    background: transparent;
+    color: #666;
+    border: none;
+    padding: 8px 25px;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#view-tabs button:hover {
+    color: #999;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+#view-tabs button.active {
+    background: #ffcc00;
+    color: #000;
+}
+
+#view-tabs button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+#hud-top {
+    padding: 10px 20px;
+    display: flex;
+    flex-direction: row;
+    /* Horizontal alignment */
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: auto;
+    width: 100%;
+    z-index: 160;
+    background: rgba(0, 0, 0, 0.85);
+    /* Dark background for persistence */
+    border-bottom: 1px solid #333;
+    box-sizing: border-box;
+    height: 60px;
+    /* Fixed height for consistency */
+}
+
+#resource-hud {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.hud-group {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    /* Split width */
+}
+
+.hud-group.right-align {
+    justify-content: flex-end;
+}
+
+#view-tabs {
+    flex: 0 0 auto;
+    margin: 0 20px;
+    /* Center it visually */
+}
+
+.res-item {
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: #fff;
+    white-space: nowrap;
+}
+
+#cash-display {
+    color: #00ff00;
+    /* Money green */
+    text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+#day-display {
+    color: #ffcc00;
+}
+
+/* Updated Heat Container for horizontal layout */
+#heat-bar-container {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Center label over bar */
+    gap: 5px;
+    width: 200px;
+}
+
+#heat-bar-container label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #666;
+    font-weight: bold;
+}
+
+#heat-bar-bg {
+    width: 100%;
+    height: 8px;
+    background: #333;
+    border-radius: 4px;
+    overflow: visible;
+    /* Allow glow to spill out */
+    position: relative;
+    box-shadow: inset 0 0 5px #000;
+}
+
+#intel-display {
+    color: #00ffff;
+    /* Cyan */
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+}
+
+/* --- ACTION PANEL (Restored) --- */
+#action-panel {
+    position: absolute;
+    right: 40px;
+    top: calc((var(--map-height) / 2) + 40px);
+    /* Lowered slightly */
+    /* Center relative to Map Area (65vh) */
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    z-index: 101;
+    pointer-events: auto;
+}
+
+#execute-btn {
+    width: 200px;
+    height: 60px;
+    border-radius: 4px;
+    background: #222;
+    color: #444;
+    border: 2px solid #333;
+    font-size: 18px;
+    letter-spacing: 2px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: not-allowed;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#execute-btn.ready {
+    background: #ffcc00;
+    color: #000;
+    border-color: #ffaa00;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(255, 204, 0, 0.4);
+}
+
+#execute-btn.ready:hover {
+    transform: scale(1.05);
+}
+
+#execute-btn.ready:active {
+    transform: scale(0.95);
+}
+
+
+
+#heat-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: #00ffaa;
+    border-radius: 4px;
+    transition: width 0.3s, background-color 0.3s;
+    position: relative;
+}
+
+#heat-bar-fill.warning {
+    background: #ffcc00;
+}
+
+#heat-bar-fill.danger {
+    background: #ff4444;
+    animation: heat-pulse 0.5s infinite;
+}
+
+/* Pulsing Heat Effects */
+#heat-bar-fill.high-heat {
+    animation: heat-pulse-fast 1s infinite alternate;
+}
+
+#heat-bar-fill.med-heat {
+    box-shadow: 0 0 10px rgba(200, 0, 255, 0.6);
+}
+
+@keyframes heat-pulse-fast {
+    0% {
+        box-shadow: 0 0 10px rgba(255, 50, 0, 0.8);
+    }
+
+    100% {
+        box-shadow: 0 0 25px rgba(255, 100, 0, 1);
+    }
+}
+
+@keyframes heat-pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+/* --- EVENT LOG --- */
+#hud-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    pointer-events: none;
+}
+
+#event-log {
+    width: 400px;
+    max-height: 200px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+}
+
+.log-entry {
+    font-size: 12px;
+    font-weight: bold;
+    padding: 8px 15px;
+    background: rgba(0, 0, 0, 0.8);
+    border-left: 3px solid #666;
+    animation: log-fade-in 0.3s ease-out forwards;
+}
+
+.log-entry.success {
+    border-left-color: #00ff00;
+    color: #00ff00;
+}
+
+.log-entry.fail {
+    border-left-color: #ff4444;
+    color: #ff4444;
+}
+
+@keyframes log-fade-in {
+    from {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}

@@ -1,32 +1,50 @@
-import './index.css';
+import './styles/core.css';
+import './styles/map.css';
+import './styles/hud.css';
+import './styles/command-deck.css';
+import './styles/shop.css';
+import './styles/aar.css';
+import './styles/job-board.css';
 import { MapRenderer } from './ui/map/MapRenderer';
 import { commandCenterUI } from './ui/CommandCenterUI';
 import { shopManager } from './ui/ShopManager';
 import GameManager from './game/GameManager';
 import { MapGenerator } from './game/MapGenerator';
 import { SimulationEngine } from './game/SimulationEngine';
+import { JobBoardUI } from './ui/JobBoardUI';
 
 console.log('Renderer process started. Initializing Command Center...');
 
 // 1. Initial State Preparation
-const day1Map = MapGenerator.generateStaticLevel(0, window.innerHeight);
-GameManager.gameState.map = day1Map;
+// Start with NO map -> Force Job Board on Day 1
+GameManager.gameState.map = null;
+GameManager.gameState.simulation.status = "SELECTING_CONTRACT";
 
 // 2. Initialize UI Managers
 commandCenterUI.init();
 shopManager.init();
+GameManager.refreshShop(); // Initial shop generation
+const jobBoardUI = new JobBoardUI('game-map'); // Overlay on game map
+
+// Force initial render of Job Board if status matches
+if (GameManager.gameState.simulation.status === 'SELECTING_CONTRACT') {
+  jobBoardUI.render();
+  // Hide default HUD elements initially
+  const hudCenter = document.getElementById('hud-center');
+  const actionPanel = document.getElementById('action-panel');
+  if (hudCenter) hudCenter.style.display = 'none';
+  if (actionPanel) actionPanel.style.display = 'none';
+}
 
 // 3. Initialize HTML Map Renderer
 const mapRenderer = new MapRenderer();
 mapRenderer.init();
-// Remove Phaser Instance
-// const gameInstance = new Phaser.Game(config);
 
 // 4. View Management Logic
 const views = {
   map: {
     btn: document.getElementById('btn-view-map'),
-    elements: ['hud-center', 'action-panel', 'hud-top']
+    elements: ['hud-center', 'action-panel'] // Removed hud-top
   },
   shop: {
     btn: document.getElementById('btn-view-shop'),
@@ -48,30 +66,46 @@ function switchView(viewKey) {
       const el = document.getElementById(id);
       if (el) {
         if (key === viewKey) {
-          el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'flex' : 'block';
-        } else {
-          // KEY CHANGE: Never hide hud-top, as it holds the navigation tabs
-          if (id !== 'hud-top') {
-            el.style.display = 'none';
+          // Special handling for MAP view vs JOB BOARD
+          if (key === 'map' && !GameManager.gameState.map) {
+            // If checking map but no map exists -> Show Job Board
+            jobBoardUI.render();
+            // We might want to hide the HUD center/action panel if Job Board is full screen?
+            // For now let's keep them but ensure Job Board is on top.
+            el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'none' : 'flex'; // Hide usual HUD in job board
+          } else {
+            el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'flex' : 'block';
+            if (key === 'map') jobBoardUI.hide();
           }
+        } else {
+          el.style.display = 'none';
         }
       }
     });
   });
 
-  if (viewKey === 'shop') shopManager.updateUI();
+  if (viewKey === 'shop') {
+    shopManager.updateUI();
+    jobBoardUI.hide();
+  }
 }
 
 views.map.btn.addEventListener('click', () => switchView('map'));
 views.shop.btn.addEventListener('click', () => switchView('shop'));
 
-// 5. Global Event Orchestration
-window.addEventListener('openShop', () => {
-  switchView('shop');
-});
+// ...
 
 window.addEventListener('nextDayStarted', () => {
+  // Switch to Map view default interaction when day starts
+  // But since map is null, it will show Job Board.
   switchView('map');
+});
+
+// Ensure HUD reappears when map is loaded
+window.addEventListener('mapLoaded', () => {
+  switchView('map');
+  document.getElementById('hud-center').style.display = 'flex';
+  document.getElementById('action-panel').style.display = 'flex';
 });
 
 window.addEventListener('startHeist', () => {
@@ -145,16 +179,21 @@ function updateGlobalHeat() {
   }
 }
 
-function updateGlobalIntel() {
+function updateGlobalResources() {
   const intel = GameManager.gameState.meta.intel;
-  const label = document.getElementById('intel-display');
-  if (label) {
-    label.innerText = `INTEL: ${intel}`;
-  }
+  const cash = GameManager.gameState.meta.cash;
+
+  const intelLabel = document.getElementById('intel-display');
+  if (intelLabel) intelLabel.innerText = `INTEL: ${intel}`;
+
+  const cashLabel = document.getElementById('cash-display');
+  if (cashLabel) cashLabel.innerText = `CASH: $${cash}`;
 }
 
-window.addEventListener('intelPurchased', updateGlobalIntel);
-window.addEventListener('nextDayStarted', updateGlobalIntel);
+
+
+window.addEventListener('intelPurchased', updateGlobalResources);
+window.addEventListener('nextDayStarted', updateGlobalResources);
 
 updateGlobalHeat();
-updateGlobalIntel();
+updateGlobalResources();

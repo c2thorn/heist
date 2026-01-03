@@ -1,0 +1,115 @@
+/* --- JOB BOARD OVERLAY --- */
+#job-board-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--map-height);
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 110px;
+    /* Reduced from 120px */
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+
+.job-board-header {
+    text-align: center;
+    margin-bottom: 10px;
+    /* Reduced from 40px */
+}
+
+.job-board-header h2 {
+    color: #ffcc00;
+    font-size: 24px;
+    /* Slightly smaller */
+    margin: 0;
+    letter-spacing: 4px;
+}
+
+.job-board-header p {
+    color: #666;
+    margin-top: 5px;
+    font-size: 12px;
+    letter-spacing: 2px;
+}
+
+.contracts-container {
+    display: flex;
+    gap: 15px;
+    /* Reduced gap */
+    width: 90%;
+    justify-content: center;
+}
+
+.contract-card {
+    background: #111;
+    border: 1px solid #333;
+    padding: 15px;
+    /* Reduced padding */
+    width: 220px;
+    /* Slightly narrower */
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Reduced internal gap */
+}
+
+.contract-card:hover {
+    border-color: #ffcc00;
+    background: #1a1a1a;
+    transform: translateY(-5px);
+}
+
+
+.contract-type {
+    font-size: 10px;
+    color: #00ffff;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.contract-card h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #fff;
+    font-weight: bold;
+}
+
+.contract-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #888;
+    font-weight: bold;
+}
+
+.contract-desc {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.4;
+    flex: 1;
+}
+
+.accept-contract-btn {
+    background: #ffcc00;
+    color: #000;
+    border: none;
+    padding: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 10px;
+}
+
+.accept-contract-btn:hover {
+    background: #ffdb4d;
+}
