@@ -15,12 +15,19 @@ export const ArrangementType = {
 /**
  * ArrangementEngine class - manages arrangements for the current heist
  */
+import GameManager from '../GameManager.js';
+
 export class ArrangementEngine {
     constructor() {
+        if (ArrangementEngine.instance) return ArrangementEngine.instance;
+        ArrangementEngine.instance = this;
+
+        // Remove local cash
+        // this.cashAvailable = 1000; (Deleted)
+
+        this.activeArrangements = [];
         this.available = [];    // Arrangements available for purchase
-        this.purchased = [];    // Purchased arrangements
-        this.cashAvailable = 1000;  // Starting cash
-        this.listeners = [];    // Trigger callbacks
+        this.purchased = []; // List of purchased arrangement instances
     }
 
     /**
@@ -78,29 +85,26 @@ export class ArrangementEngine {
             return false;
         }
 
-        if (this.cashAvailable < arr.cost) {
-            console.warn(`[ArrangementEngine] Not enough cash! Need $${arr.cost}, have $${this.cashAvailable}`);
-            return false;
+        // Use GameManager to spend
+        if (GameManager.spendCash(arr.cost)) {
+            arr.purchased = true;
+            this.purchased.push(arr);
+
+            console.log(`[ArrangementEngine] Purchased: ${arr.name} ($${GameManager.gameState.meta.cash} remaining)`);
+
+            // Apply immediate effect for STATIC_MODIFIER
+            if (arr.type === ArrangementType.STATIC_MODIFIER) {
+                this._applyStaticModifier(arr);
+            }
+
+            // Dispatch event for UI
+            window.dispatchEvent(new CustomEvent('arrangementPurchased', {
+                detail: { arrangement: arr }
+            }));
+
+            return true;
         }
-
-        // Deduct cash
-        this.cashAvailable -= arr.cost;
-        arr.purchased = true;
-        this.purchased.push(arr);
-
-        console.log(`[ArrangementEngine] Purchased: ${arr.name} ($${this.cashAvailable} remaining)`);
-
-        // Apply immediate effect for STATIC_MODIFIER
-        if (arr.type === ArrangementType.STATIC_MODIFIER) {
-            this._applyStaticModifier(arr);
-        }
-
-        // Dispatch event for UI
-        window.dispatchEvent(new CustomEvent('arrangementPurchased', {
-            detail: { arrangement: arr }
-        }));
-
-        return true;
+        return false;
     }
 
     /**
@@ -166,26 +170,56 @@ export class ArrangementEngine {
     /**
      * Execute a triggered ability
      */
+    /**
+     * Execute a triggered ability
+     * Uses modular event system (Stimulus & Response)
+     */
     _executeTrigger(arr) {
         const payload = arr.payload;
 
         switch (payload.effect) {
             case 'PHONE_DISTRACTION':
                 console.log(`[ArrangementEngine] 📞 Phone ringing at (${payload.x}, ${payload.y})!`);
-                // Would create distraction that guards investigate
-                window.dispatchEvent(new CustomEvent('distractionCreated', {
-                    detail: { x: payload.x, y: payload.y, type: 'phone' }
+
+                // Generic Audio Stimulus
+                window.dispatchEvent(new CustomEvent('gameStimulus', {
+                    detail: {
+                        type: 'AUDIO',
+                        origin: { x: payload.x, y: payload.y },
+                        radius: 12,     // How far the sound travels
+                        priority: 10,   // Priority over patrol
+                        sourceId: 'phone_distraction'
+                    }
                 }));
                 break;
+
             case 'POWER_CUT':
-                console.log(`[ArrangementEngine] ⚡ Power cut! Cameras disabled for 30s`);
-                window.dispatchEvent(new CustomEvent('powerCut', {
-                    detail: { duration: 30 }
+                console.log(`[ArrangementEngine] ⚡ Power cut! Cameras disabled for ${payload.duration}s`);
+
+                // Generic Global Effect
+                window.dispatchEvent(new CustomEvent('globalEffectStart', {
+                    detail: {
+                        type: 'VISION_DAMPENING',
+                        value: 0.0, // Vision reduced to 0 (or blindness layer)
+                        duration: payload.duration
+                    }
                 }));
+
+                // Auto-end effect after duration (handled here or by a GameState manager)
+                // For simplicity, we dispatch the end event after timeout here
+                setTimeout(() => {
+                    console.log(`[ArrangementEngine] ⚡ Power restored.`);
+                    window.dispatchEvent(new CustomEvent('globalEffectEnd', {
+                        detail: { type: 'VISION_DAMPENING' }
+                    }));
+                }, payload.duration * 1000);
                 break;
+
             case 'GETAWAY_CAR':
                 console.log(`[ArrangementEngine] 🚗 Getaway car arrived at extraction!`);
+                // Could be a game state change event
                 break;
+
             default:
                 console.log(`[ArrangementEngine] Trigger effect: ${payload.effect || 'custom'}`);
         }
@@ -211,11 +245,13 @@ export class ArrangementEngine {
     }
 
     /**
-     * Get current cash balance
-     * @returns {number} Cash available
+     * Get current cash available
      */
     getCash() {
-        return this.cashAvailable;
+        if (GameManager && GameManager.gameState) {
+            return GameManager.gameState.meta.cash;
+        }
+        return 0;
     }
 
     /**

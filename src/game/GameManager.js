@@ -55,14 +55,17 @@ class GameManager {
                 vaultCracked: false,
                 alarmTriggered: false,
                 isGameOver: false,
-                isVictory: false
+                isVictory: false,
+                primaryLootSecured: false,  // Triggers SIGNAL_EXFIL
+                scram: false                // Triggers SIGNAL_SCRAM
             },
             simulation: {
                 status: "PLANNING",
                 plannedPath: [],
                 currentNodeIndex: 0,
                 log: [],
-                runHistory: [] // Structured timeline for AAR
+                runHistory: [], // Structured timeline for AAR
+                plan: {}        // Plan: { crewId: [ { type, target, ... } ] }
             },
             crew: {
                 activeStack: [],
@@ -144,7 +147,17 @@ class GameManager {
     addCash(amount) {
         this.gameState.meta.cash += amount;
         // Notify UI immediately
-        window.dispatchEvent(new CustomEvent('intelPurchased'));
+        window.dispatchEvent(new CustomEvent('intelPurchased')); // Reusing event or make new one?
+        window.dispatchEvent(new CustomEvent('cashUpdated', { detail: { cash: this.gameState.meta.cash } }));
+    }
+
+    spendCash(amount) {
+        if (this.gameState.meta.cash >= amount) {
+            this.gameState.meta.cash -= amount;
+            window.dispatchEvent(new CustomEvent('cashUpdated', { detail: { cash: this.gameState.meta.cash } }));
+            return true;
+        }
+        return false;
     }
 
     buyIntel() {

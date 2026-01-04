@@ -1,0 +1,441 @@
+import GameManager from '../GameManager';
+import { GridConfig } from './GridConfig';
+import { Triggers } from '../plan/GoalDiscoveryService';
+
+/**
+ * TaskProcessor - The "Brain" of the Crew Member
+ * Converts high-level Objectives (Queue) into low-level Actions.
+ * Handles trigger-based waiting and "Smart Waiting" when paths blocked.
+ * 
+ * Objective Types:
+ * - ACTION: Go interact with something (trigger = "start when")
+ * - HOLD: Stay in zone doing a role (trigger = "release when")
+ * - LOOT: Bag items at target (trigger = "start when")
+ * - ESCAPE: Exit via specified route (trigger = "start when")
+ */
+export class TaskProcessor {
+    constructor(unit) {
+        this.unit = unit;
+        this.currentObjective = null;
+        this.state = 'IDLE'; // IDLE, MOVING, INTERACTING, HOLDING, ESCAPING, WAITING_FOR_PATH, WAITING_FOR_TRIGGER
+        this.path = [];
+        this.pathIndex = 0;
+        this.retryTimer = 0;
+        this.holdStartTime = 0; // Track when HOLD started
+    }
+
+    handleStimulus(stimulus) {
+        console.log(`[TaskProcessor] Reacting to stimulus: ${stimulus.type}`);
+        // If LOOKOUT role, could alert team here
+    }
+
+    /**
+     * Main Tick Function
+     */
+    update(dt) {
+        // 1. Check Global Phase
+        if (window.heistPhase !== 'EXECUTING') return;
+
+        // 2. Check SCRAM override
+        if (this.checkScram()) return;
+
+        // 3. Fetch Objective if Idle or waiting
+        if (!this.currentObjective || this.state === 'WAITING_FOR_TRIGGER') {
+            this.currentObjective = this.getNextObjective();
+            if (!this.currentObjective) {
+                return; // No objectives left
+            }
+
+            // Check trigger condition (start-when) for non-HOLD types
+            if (this.currentObjective.trigger &&
+                this.currentObjective.type !== 'HOLD') {
+                if (!this.isTriggerFired(this.currentObjective.trigger)) {
+                    this.state = 'WAITING_FOR_TRIGGER';
+                    return; // Wait for trigger before starting
+                }
+            }
+
+            this.startObjective(this.currentObjective);
+        }
+
+        // 4. Process State
+        switch (this.state) {
+            case 'MOVING':
+                this.processMovement(dt);
+                break;
+            case 'WAITING_FOR_PATH':
+                this.processRetry(dt);
+                break;
+            case 'INTERACTING':
+                this.processInteraction(dt);
+                break;
+            case 'HOLDING':
+                this.processHold(dt);
+                break;
+            case 'ESCAPING':
+                this.processMovement(dt);
+                break;
+        }
+    }
+
+    getNextObjective() {
+        const plan = GameManager.gameState.simulation.plan[this.unit.id];
+        if (!plan || plan.length === 0) {
+            // Guards and other NPCs won't have plans - that's expected
+            return null;
+        }
+        return plan.find(o => o.status === 'PENDING');
+    }
+
+    startObjective(obj) {
+        console.log(`[${this.unit.id}] Starting Objective: ${obj.label} (${obj.type})`);
+        obj.status = 'IN_PROGRESS';
+
+        switch (obj.type) {
+            case 'ACTION':
+                this.startAction(obj);
+                break;
+            case 'HOLD':
+                this.startHold(obj);
+                break;
+            case 'LOOT':
+                this.startLoot(obj);
+                break;
+            case 'ESCAPE':
+                this.startEscape(obj);
+                break;
+            default:
+                console.warn(`Unknown objective type: ${obj.type}`);
+                this.completeObjective();
+        }
+    }
+
+    // === OBJECTIVE HANDLERS ===
+
+    startAction(obj) {
+        console.log(`[${this.unit.id}] startAction called with target: ${obj.target}`);
+        const interactable = this.findInteractable(obj.target);
+        console.log(`[${this.unit.id}] Found interactable:`, interactable);
+        if (interactable) {
+            // Find an adjacent walkable tile to approach
+            const approachTiles = interactable.getApproachTiles(this.unit.tileMap);
+            if (approachTiles.length > 0) {
+                // Pick the closest approach tile
+                const target = approachTiles[0]; // TODO: Pick closest
+                console.log(`[${this.unit.id}] Approaching interactable at ${target.x},${target.y}`);
+                this.targetInteractable = interactable; // Store for interaction
+                this.requestPath(target.x, target.y);
+            } else {
+                console.warn(`No walkable approach tiles for ${obj.target}`);
+                this.completeObjective();
+            }
+        } else {
+            console.warn(`Interactable not found: ${obj.target}`);
+            this.completeObjective();
+        }
+    }
+
+    startHold(obj) {
+        // Move to zone first, then hold
+        const targetTile = this.findTileInSector(obj.target);
+        if (targetTile) {
+            this.holdStartTime = Date.now();
+            this.requestPath(targetTile.x, targetTile.y);
+        } else {
+            console.warn(`Zone not found: ${obj.target}`);
+            this.completeObjective();
+        }
+    }
+
+    startLoot(obj) {
+        // Move to loot target (container/zone)
+        const interactable = this.findInteractable(obj.target);
+        if (interactable) {
+            const approachTiles = interactable.getApproachTiles(this.unit.tileMap);
+            if (approachTiles.length > 0) {
+                const target = approachTiles[0];
+                this.targetInteractable = interactable;
+                this.requestPath(target.x, target.y);
+            } else {
+                console.warn(`No walkable approach tiles for loot ${obj.target}`);
+                this.completeObjective();
+            }
+        } else {
+            console.warn(`Loot target not found: ${obj.target}`);
+            this.completeObjective();
+        }
+    }
+
+    startEscape(obj) {
+        this.state = 'ESCAPING';
+        const exit = this.findExit(obj.target);
+        if (exit) {
+            this.requestPath(exit.x, exit.y);
+        } else {
+            // Fallback to unit's defaultExit
+            const defaultExit = this.findExit(this.unit.defaultExit);
+            if (defaultExit) {
+                this.requestPath(defaultExit.x, defaultExit.y);
+            } else {
+                console.warn(`Exit not found: ${obj.target}`);
+                this.completeObjective();
+            }
+        }
+    }
+
+    processHold(dt) {
+        // Check release trigger
+        if (this.currentObjective.trigger) {
+            if (this.isTriggerFired(this.currentObjective.trigger)) {
+                console.log(`[${this.unit.id}] HOLD released by trigger: ${this.currentObjective.trigger}`);
+                this.completeObjective();
+                return;
+            }
+        }
+
+        // Default timeout: mission timer (check window.missionTimer or similar)
+        // For now, HOLD indefinitely until trigger or mission ends
+        // Could add: if (Date.now() - this.holdStartTime > maxHoldTime) this.completeObjective();
+    }
+
+    // === TRIGGER SYSTEM ===
+
+    isTriggerFired(trigger) {
+        if (!trigger) return true; // No trigger = immediate
+
+        // Check signal triggers
+        if (trigger === Triggers.SIGNAL_EXFIL) {
+            return GameManager.gameState.flags.primaryLootSecured === true;
+        }
+        if (trigger === Triggers.SIGNAL_SCRAM) {
+            return GameManager.gameState.flags.scram === true;
+        }
+        if (trigger === Triggers.TIMER_COMPLETE) {
+            // Check if mission timer is complete
+            return window.missionTimerComplete === true;
+        }
+
+        // Check STATE: triggers
+        if (trigger.startsWith('STATE:')) {
+            const stateKey = trigger.replace('STATE:', '');
+            // Check interactable states (e.g., vault_open)
+            if (window.interactableStates && window.interactableStates[stateKey]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    checkScram() {
+        if (GameManager.gameState.flags.scram === true) {
+            // Override everything, escape immediately
+            if (this.state !== 'ESCAPING') {
+                console.log(`[${this.unit.id}] SCRAM! Abandoning objective, escaping!`);
+                if (this.currentObjective) {
+                    this.currentObjective.status = 'ABORTED';
+                }
+                this.currentObjective = null;
+
+                // Create emergency escape objective
+                const escapeObj = {
+                    id: `scram_${Date.now()}`,
+                    type: 'ESCAPE',
+                    target: this.unit.defaultExit || 'lobby',
+                    label: 'SCRAM Escape',
+                    status: 'IN_PROGRESS'
+                };
+                this.currentObjective = escapeObj;
+                this.startEscape(escapeObj);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // === HELPERS ===
+
+    findTileInSector(sectorId) {
+        if (!window.tileMap) return null;
+        const zone = window.tileMap.getZone(sectorId);
+        if (!zone) return null;
+
+        let sumX = 0, sumY = 0, count = 0;
+        zone.tiles.forEach(t => {
+            if (t.type === 'FLOOR') {
+                sumX += t.x;
+                sumY += t.y;
+                count++;
+            }
+        });
+
+        if (count > 0) {
+            return window.tileMap.getTile(Math.floor(sumX / count), Math.floor(sumY / count));
+        }
+        return null;
+    }
+
+    findInteractable(id) {
+        if (!window.gridRenderer) return null;
+        return window.gridRenderer.interactables.find(i => i.id === id);
+    }
+
+    findExit(id) {
+        // First check gridRenderer.exitPoints if available
+        if (window.gridRenderer && window.gridRenderer.exitPoints) {
+            const exit = window.gridRenderer.exitPoints.find(e => e.id === id);
+            if (exit) return exit;
+        }
+
+        // Fallback: use radioController.exitTile
+        if (window.radioController && window.radioController.exitTile) {
+            return {
+                id: 'main_exit',
+                x: window.radioController.exitTile.x,
+                y: window.radioController.exitTile.y
+            };
+        }
+
+        return null;
+    }
+
+    async requestPath(targetX, targetY) {
+        if (!window.pathfinder) {
+            console.error(`[${this.unit.id}] window.pathfinder is not set!`);
+            return;
+        }
+
+        const startX = this.unit.gridPos.x;
+        const startY = this.unit.gridPos.y;
+        console.log(`[${this.unit.id}] Requesting path from (${startX},${startY}) to (${targetX},${targetY})`);
+
+        // Debug tile checks
+        const startTile = this.unit.tileMap.getTile(startX, startY);
+        const endTile = this.unit.tileMap.getTile(targetX, targetY);
+        console.log(`[${this.unit.id}] Start tile walkable: ${startTile?.isWalkable}, End tile walkable: ${endTile?.isWalkable}`);
+
+        // Use async version with await
+        const path = await window.pathfinder.findPath(
+            startX,
+            startY,
+            targetX,
+            targetY
+        );
+
+        if (path && path.length > 0) {
+            this.path = path;
+            this.pathIndex = 0;
+            if (this.state !== 'ESCAPING') {
+                this.state = 'MOVING';
+            }
+            console.log(`[${this.unit.id}] Path found: ${path.length} steps`);
+        } else {
+            console.log(`[${this.unit.id}] Path blocked or invalid.`);
+            this.state = 'WAITING_FOR_PATH';
+            this.retryTimer = 1.0;
+            this.targetX = targetX;
+            this.targetY = targetY;
+        }
+    }
+
+    processMovement(dt) {
+        if (this.pathIndex >= this.path.length) {
+            // Arrived at destination
+            this.onArrival();
+            return;
+        }
+
+        const nextNode = this.path[this.pathIndex];
+        // Debug: Log unit position before movement
+        if (this.pathIndex === 0) {
+            console.log(`[${this.unit.id}] Movement Start - UnitPos: (${this.unit.gridPos.x},${this.unit.gridPos.y}), Target: (${nextNode.x},${nextNode.y})`);
+        }
+        const arrived = this.unit.moveTowards(nextNode.x, nextNode.y, dt);
+        if (arrived) {
+            console.log(`[${this.unit.id}] Arrived at step ${this.pathIndex}: (${nextNode.x},${nextNode.y})`);
+            this.pathIndex++;
+        }
+    }
+
+    onArrival() {
+        const obj = this.currentObjective;
+        if (!obj) return;
+
+        switch (obj.type) {
+            case 'ACTION':
+                this.state = 'INTERACTING';
+                // TODO: Start interaction animation/timer
+                break;
+            case 'HOLD':
+                this.state = 'HOLDING';
+                console.log(`[${this.unit.id}] Now HOLDING in zone`);
+                break;
+            case 'LOOT':
+                this.state = 'INTERACTING';
+                // Mark primary loot as secured if applicable
+                if (obj.priority === 'PRIMARY') {
+                    GameManager.gameState.flags.primaryLootSecured = true;
+                    console.log('[GAME] Primary loot secured! EXFIL signal fired.');
+                }
+                break;
+            case 'ESCAPE':
+                console.log(`[${this.unit.id}] EXTRACTED!`);
+                this.unit.isExtracted = true;
+                this.completeObjective();
+                break;
+        }
+    }
+
+    processInteraction(dt) {
+        // Get the target interactable
+        const interactable = this.targetInteractable;
+        if (!interactable) {
+            console.warn(`[${this.unit.id}] No target interactable for interaction!`);
+            this.completeObjective();
+            return;
+        }
+
+        // Start interaction if not already started
+        if (interactable.state !== 'IN_PROGRESS') {
+            interactable.startInteraction(this.unit.id);
+            console.log(`[${this.unit.id}] Started interacting with ${interactable.label} (${interactable.duration}s)`);
+        }
+
+        // Update progress
+        const complete = interactable.updateProgress(dt);
+
+        if (complete) {
+            // Perform skill check (simple: always succeed for now)
+            const result = interactable.completeInteraction(true);
+            console.log(`[${this.unit.id}] Interaction complete: ${result.message}`);
+
+            // Handle result (intel, loot, etc.)
+            if (result.intel && window.GameManager) {
+                window.GameManager.gameState.intel += result.intel;
+            }
+            if (result.loot && window.GameManager) {
+                window.GameManager.gameState.cash += result.loot;
+            }
+
+            this.targetInteractable = null;
+            this.completeObjective();
+        }
+    }
+
+    processRetry(dt) {
+        this.retryTimer -= dt;
+        if (this.retryTimer <= 0) {
+            this.retryTimer = 1.0;
+            console.log(`[${this.unit.id}] Retrying path...`);
+            this.requestPath(this.targetX, this.targetY);
+        }
+    }
+
+    completeObjective() {
+        if (!this.currentObjective) return;
+        console.log(`[${this.unit.id}] Objective Complete: ${this.currentObjective.label}`);
+        this.currentObjective.status = 'COMPLETED';
+        this.currentObjective = null;
+        this.state = 'IDLE';
+    }
+}

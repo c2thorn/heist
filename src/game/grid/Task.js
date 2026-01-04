@@ -42,15 +42,15 @@ export class Task {
         this.type = type;
         this.target = target;
         this.status = TaskStatus.PENDING;
-        
+
         // Logic Gate properties (SPEC_003 Section 4)
         this.waitForSignal = options.waitForSignal || null;
         this.emitSignal = options.emitSignal || null;
-        
+
         // Task-specific properties
         this.duration = options.duration || 0;  // For WAIT tasks
         this.elapsed = 0;                        // Progress tracking
-        
+
         // Metadata
         this.createdAt = Date.now();
         this.startedAt = null;
@@ -131,4 +131,14 @@ export class Task {
     static signal(signalId, options = {}) {
         return new Task(TaskType.SIGNAL, signalId, options);
     }
+
+    /**
+     * Create an INTERACT task
+     * @param {Interactable} interactable - The object to interact with
+     * @param {Object} options - Additional options
+     */
+    static interact(interactable, options = {}) {
+        return new Task(TaskType.INTERACT, interactable, options);
+    }
 }
+

@@ -10,6 +10,24 @@
     /* Let clicks pass to nodes */
 }
 
+/* --- UI OVERLAY LAYER --- */
+/* Sits above the canvas for floating menus, badges, context menus */
+#game-ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--map-height);
+    z-index: 100;
+    pointer-events: none;
+    /* Pass through by default */
+}
+
+/* Children of ui-layer can receive events */
+#game-ui-layer>* {
+    pointer-events: auto;
+}
+
 /* Tile Grid Canvas */
 #tile-grid-canvas {
     position: absolute;

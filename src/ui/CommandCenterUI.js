@@ -240,6 +240,7 @@ class CommandCenterUI {
         const roster = GameManager.gameState.crew.roster;
         const activeCrew = roster.filter(c => this.selectedIds.has(c.id));
         GameManager.gameState.crew.activeStack = activeCrew;
+        GameManager.events.emit('crew-updated');
     }
 
     setLocked(locked) {

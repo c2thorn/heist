@@ -5,14 +5,23 @@ import './styles/command-deck.css';
 import './styles/shop.css';
 import './styles/aar.css';
 import './styles/job-board.css';
+import './styles/setup-phase.css';
 import { MapRenderer } from './ui/map/MapRenderer';
 import { commandCenterUI } from './ui/CommandCenterUI';
 import { shopManager } from './ui/ShopManager';
+import { setupPhaseUI } from './ui/SetupPhaseUI';
 import GameManager from './game/GameManager';
 import { MapGenerator } from './game/MapGenerator';
 import { SimulationEngine } from './game/SimulationEngine';
 import { JobBoardUI } from './ui/JobBoardUI';
-import { GridRenderer, TestMapGenerator, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine } from './game/grid/index.js';
+import { UnitContextMenu } from './ui/UnitContextMenu';
+import './styles/context-menu.css';
+import { GridRenderer, TestMapGenerator, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel } from './game/grid/index.js';
+
+let unitContextMenu = null;
+
+// Expose GameManager globally for inline scripts
+window.GameManager = GameManager;
 
 console.log('Renderer process started. Initializing Command Center...');
 
@@ -60,6 +69,7 @@ function initTileGrid() {
 
   // Generate a test building for now
   tileMap = TestMapGenerator.generateSimpleBuilding();
+  window.tileMap = tileMap; // Expose for Unit spawning
 
   // Open some doors for pathfinding
   const door1 = tileMap.getTile(15, 22);
@@ -75,23 +85,19 @@ function initTileGrid() {
 
   // Initialize pathfinder
   pathfinder = new Pathfinder(tileMap);
+  window.pathfinder = pathfinder; // Expose globally for TaskProcessor
 
-  // Create two test units for collision testing
-  testUnit = new Unit('crew_1', 15, 25, tileMap);
-  testUnit.color = '#00ff88';  // Green
-  gridRenderer.addUnit(testUnit);
+  // 4. Initialize Tile Grid Renderer
+  // ... (Pathfinder init)
 
-  const testUnit2 = new Unit('crew_2', 16, 25, tileMap);
-  testUnit2.color = '#ff8800';  // Orange
-  gridRenderer.addUnit(testUnit2);
-
+  // Guard Setup (Enemy)
   // Create a test guard with vision cone
   const guard = new Unit('guard_1', 15, 18, tileMap);
   guard.color = '#ff4444';  // Red
   guard.radius = 10;
   gridRenderer.addUnit(guard);
 
-  // Create vision cone for the guard (facing down, 90 degree FOV, 6 tile range)
+  // Vision cone setup...
   guardVision = new VisionCone({
     range: 6,
     fov: 90,
@@ -107,31 +113,60 @@ function initTileGrid() {
   // Store guard reference for animation
   window.testGuard = guard;
 
-  // Setup reroute callbacks for crew units
-  const setupReroute = (unit) => {
-    unit.onNeedReroute = async (blockedUnit) => {
-      console.log(blockedUnit.id, 'needs reroute - blocked too long');
-      // Just stop for now - in full game would find alternate path
-      blockedUnit.stop();
-    };
-  };
-  setupReroute(testUnit);
-  setupReroute(testUnit2);
-
-  // Set pathfinder reference for TaskController
-  testUnit.setPathfinder(pathfinder);
-  testUnit2.setPathfinder(pathfinder);
-
-  // Track selected unit for movement commands
-  window.selectedUnit = testUnit;
-  window.allUnits = [testUnit, testUnit2];
+  // Initialize empty units list for Heist Start
+  window.allUnits = [];
+  window.selectedUnit = null;
 
   // Expose Task and signalBus for console testing
   window.Task = Task;
   window.signalBus = signalBus;
 
+  // Expose Task and signalBus for console testing
+  window.Task = Task;
+  window.signalBus = signalBus;
+
+  // Create test interactables (in accessible locations near lobby/hallway)
+  const testSafe = new Safe({
+    id: 'lobby_safe',
+    gridX: 18,      // In lobby area
+    gridY: 25,
+    label: 'Lobby Safe',
+    lootValue: 2000,
+    dc: 7,
+    duration: 4
+  });
+
+  const testComputer = new Computer({
+    id: 'lobby_terminal',
+    gridX: 12,      // In lobby area
+    gridY: 24,
+    label: 'Terminal',
+    intelReward: 3,
+    canDisableCameras: false,
+    dc: 6,
+    duration: 3
+  });
+
+  const testPanel = new SecurityPanel({
+    id: 'hallway_panel',
+    gridX: 10,      // In hallway (accessible from lobby)
+    gridY: 15,
+    label: 'Alarm Panel',
+    affectedZone: 'lobby',
+    dc: 7,
+    duration: 3
+  });
+
+  // Register interactables with renderer for display
+  gridRenderer.addInteractable(testSafe);
+  gridRenderer.addInteractable(testComputer);
+  gridRenderer.addInteractable(testPanel);
+
+  window.interactables = { testSafe, testComputer, testPanel };
+  window.gridRenderer = gridRenderer;  // Expose for click handling
+
   // Initialize Radio Controller with units and exit point
-  radioController.registerUnits([testUnit, testUnit2]);
+  radioController.registerUnits([]);
   radioController.setExitTile({ x: 15, y: 28 });  // Near map entrance
   window.radioController = radioController;
   window.threatClock = threatClock;
@@ -144,6 +179,7 @@ function initTileGrid() {
   sectorManager.defineSector('security', { intelCost: 3, difficulty: 3 });
   sectorManager.defineSector('server', { intelCost: 3, difficulty: 3 });
   sectorManager.defineSector('vault', { intelCost: 4, difficulty: 4 });
+  sectorManager.defineSector('exterior', { intelCost: 1, difficulty: 0 });
   // Reveal lobby by default for testing
   sectorManager.purchaseIntel('lobby');
   sectorManager.purchaseIntel('hallway');
@@ -156,6 +192,32 @@ function initTileGrid() {
   // Initialize heist phase state (PLANNING until player clicks EXECUTE HEIST)
   window.heistPhase = 'PLANNING';  // PLANNING | EXECUTING
   threatClock.pause();  // Clock paused during planning
+
+  // Listen for map load (from Job Board)
+  window.addEventListener('mapLoaded', () => {
+    console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
+    window.heistPhase = 'PLANNING';
+
+    // Reset/Setup Managers
+    sectorManager.reset();
+    sectorManager.setIntel(GameManager.gameState.meta.intel || 10);
+    arrangementEngine.reset();
+    arrangementEngine.setCash(GameManager.gameState.meta.cash || 1000);
+
+    // Reveal lobby and exterior for context
+    sectorManager.purchaseIntel('lobby');
+    sectorManager.purchaseIntel('exterior');
+
+    // Center camera on the lobby/entry (approx 16, 25)
+    if (window.gridRenderer) {
+      const ts = GridConfig.TILE_SIZE;
+      window.gridRenderer.camera.x = 16 * ts - window.gridRenderer.camera.width / 2;
+      window.gridRenderer.camera.y = 25 * ts - window.gridRenderer.camera.height / 2;
+    }
+
+    // Show Setup UI
+    setupPhaseUI.show();
+  });
 
   // Listen for heist start
   window.addEventListener('startHeist', () => {
@@ -171,13 +233,18 @@ function initTileGrid() {
   setInterval(() => {
     if (!guardVision || !window.allUnits) return;
 
+    // PAUSE AI DURING PLANNING
+    if (window.heistPhase === 'PLANNING') return;
+
     const now = performance.now();
     const deltaTime = (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
-    // Update TaskController for each crew unit
+    // Update TaskProcessor for each crew unit
     for (const unit of window.allUnits) {
-      unit.taskController.update(deltaTime);
+      if (unit.taskProcessor) {
+        unit.taskProcessor.update(deltaTime);
+      }
     }
 
     // Update ThreatClock (only during execution phase)
@@ -257,12 +324,87 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Handle click-to-move
+// Handle click-to-move or click-to-interact
 window.addEventListener('tileClicked', async (e) => {
+  // --- SETUP PHASE INTERACTION ---
+  if (window.heistPhase === 'PLANNING') {
+    const tile = e.detail;
+    const ts = window.GridConfig?.TILE_SIZE || 32;
+
+    // 1. Check for Asset Icons
+    const assets = window.arrangementEngine?.available || [];
+    const clickedAsset = assets.find(a =>
+      a.payload && a.payload.x === tile.x && a.payload.y === tile.y
+    );
+
+    if (clickedAsset) {
+      // Check requirement visibility
+      if (clickedAsset.reqSector && !window.sectorManager.isSectorRevealed(clickedAsset.reqSector)) return;
+
+      if (!clickedAsset.purchased) {
+        if (window.arrangementEngine.getCash() >= clickedAsset.cost) {
+          window.arrangementEngine.purchase(clickedAsset.id);
+          console.log(`Purchased asset: ${clickedAsset.name}`);
+        } else {
+          console.log('Not enough cash!');
+        }
+      }
+      return; // Stop processing
+    }
+
+    // 2. Check for Hidden Sector (Blueprint)
+    const clickedTile = tileMap.getTile(tile.x, tile.y);
+    if (clickedTile && clickedTile.zoneId) {
+      const sector = window.sectorManager?.getSector(clickedTile.zoneId);
+      // Only interact if hidden
+      if (sector && sector.state === 'HIDDEN') {
+        // Buy intel
+        if (window.sectorManager.getIntel() >= sector.intelCost) {
+          window.sectorManager.purchaseIntel(sector.id);
+          console.log(`Revealed sector: ${sector.name}`);
+        } else {
+          console.log('Not enough intel!');
+        }
+        return; // Stop processing
+      }
+    }
+
+    // 3. LEGACY TILE CLICK → GOAL CREATION REMOVED
+    // Goals are now added via the UnitContextMenu objective palette only.
+    // Clicking the map no longer adds MOVE/INTERACT goals directly.
+
+    return; // In planning mode, don't move units directly
+  }
+
+  // --- EXECUTION PHASE INTERACTION ---
+
+  // 0. CHECK FOR UNIT SELECTION
+  // If we clicked on a friendly unit, select it!
+  const clickedUnit = window.allUnits?.find(u =>
+    Math.round(u.gridPos.x) === tile.x &&
+    Math.round(u.gridPos.y) === tile.y
+  );
+
+  if (clickedUnit) {
+    window.selectedUnit = clickedUnit;
+    console.log('Selected Unit:', clickedUnit.id);
+    // TODO: Add visual selection ring update here if needed (GridRenderer usually highlights selectedUnit if we passed it down)
+    return;
+  }
+
   const unit = window.selectedUnit;
   if (!unit || !pathfinder) return;
 
   const tile = e.detail;
+
+  // Check if there's an interactable at this tile
+  const interactable = window.gridRenderer?.getInteractableAt(tile.x, tile.y);
+  if (interactable && interactable.state !== 'COMPLETED') {
+    // Assign INTERACT task instead of MOVE
+    console.log(`Interacting with ${interactable.label}...`);
+    unit.assignTask(Task.interact(interactable));
+    return;
+  }
 
   // Check if tile is walkable
   const targetTile = tileMap.getTile(tile.x, tile.y);
@@ -375,28 +517,319 @@ window.addEventListener('nextDayStarted', () => {
   switchView('map');
 });
 
-// Ensure HUD reappears when map is loaded
-window.addEventListener('mapLoaded', () => {
-  switchView('map');
-  document.getElementById('hud-center').style.display = 'flex';
-  document.getElementById('action-panel').style.display = 'flex';
+// --- SPAWN LOGIC ---
+function spawnActiveCrew() {
+  const activeCrew = GameManager.gameState.crew.activeStack;
+  console.log('Spawning/Updating Roster:', activeCrew);
+
+  // Clear existing units
+  if (window.allUnits) {
+    window.allUnits.forEach(u => window.gridRenderer.removeUnit(u.id));
+  }
+  window.allUnits = [];
+
+  // Entry Point - Find a walkable tile near intended spawn
+  let entryX = 15;
+  let entryY = 26; // Try a bit higher up
+
+  // Search for a walkable tile if the default isn't walkable
+  const findWalkableSpawn = (startX, startY) => {
+    // Check in a small spiral around the target
+    const offsets = [
+      [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
+      [1, 1], [-1, 1], [1, -1], [-1, -1],
+      [2, 0], [-2, 0], [0, 2], [0, -2]
+    ];
+    for (const [dx, dy] of offsets) {
+      const tile = window.tileMap.getTile(startX + dx, startY + dy);
+      if (tile && tile.isWalkable) {
+        return { x: startX + dx, y: startY + dy };
+      }
+    }
+    return { x: startX, y: startY }; // Fallback
+  };
+
+  const spawn = findWalkableSpawn(entryX, entryY);
+  console.log(`[Spawn] Found walkable entry at (${spawn.x}, ${spawn.y})`);
+
+  activeCrew.forEach((member, index) => {
+    // Stagger spawn positions
+    const x = spawn.x + (index % 2);
+    const y = spawn.y + Math.floor(index / 2);
+
+    const unit = new Unit(member.id, x, y, window.tileMap);
+    unit.color = '#00ff88'; // Default crew color
+
+    // Assign Role Colors
+    const s = member.stats;
+    if (s.force >= s.tech && s.force >= s.stealth) unit.color = '#ff4444';
+    else if (s.tech >= s.force && s.tech >= s.stealth) unit.color = '#0088ff';
+    else unit.color = '#00ff88';
+
+    window.gridRenderer.addUnit(unit);
+    unit.setPathfinder(window.pathfinder);
+    unit.isFriendly = true;
+
+    window.allUnits.push(unit);
+  });
+
+  // Defaults & Camera Focus
+  if (window.allUnits.length > 0) {
+    window.selectedUnit = window.allUnits[0];
+    window.planningUnitId = window.selectedUnit.id; // Sync planner selection
+
+    // Force Camera Center on Squad
+    if (window.gridRenderer) {
+      const firstUnit = window.allUnits[0];
+      window.gridRenderer.camera.x = firstUnit.worldPos.x - window.gridRenderer.camera.width / 2;
+      window.gridRenderer.camera.y = firstUnit.worldPos.y - window.gridRenderer.camera.height / 2;
+      window.gridRenderer._clampCamera(); // Ensure we don't show void
+    }
+
+    setupPhaseUI.refresh();
+  }
+}
+
+// Listen for Roster Changes during Planning
+GameManager.events.on('crew-updated', () => {
+  console.log('[Renderer] Crew Updated Event received. Phase:', window.heistPhase);
+  if (window.heistPhase === 'PLANNING') {
+    spawnActiveCrew();
+  }
 });
 
 window.addEventListener('startHeist', () => {
+  console.log('--- EXECUTION STARTED ---');
+  window.heistPhase = 'EXECUTING';
+  threatClock.resume();
+
+  // Auto-switch back to Roster Tab
+  switchDeckTab('roster');
+  setupPhaseUI.hide();
+
+  // TaskProcessor now reads objectives directly from GameManager.gameState.simulation.plan
+  // No legacy hydration needed - just log for debugging
+  window.allUnits.forEach(unit => {
+    const plan = GameManager.gameState.simulation.plan[unit.id];
+    if (plan && plan.length > 0) {
+      console.log(`[${unit.id}] has ${plan.length} objectives queued`);
+    }
+  });
+
+  // Register Radio
+  if (window.radioController) {
+    window.radioController.registerUnits(window.allUnits);
+    window.radioController.renderAbilities('ability-buttons');
+  }
+
   // Lock View Tabs during heist
   views.map.btn.disabled = true;
   views.shop.btn.disabled = true;
 });
 
+// Update mapLoaded to spawn crew immediately
+window.addEventListener('mapLoaded', () => {
+  // ... items from previous mapLoaded ...
+  console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
+  window.heistPhase = 'PLANNING';
+
+  sectorManager.reset();
+  sectorManager.setIntel(GameManager.gameState.meta.intel || 10);
+  arrangementEngine.reset();
+  arrangementEngine.setCash(GameManager.gameState.meta.cash || 1000);
+
+  sectorManager.purchaseIntel('lobby');
+  sectorManager.purchaseIntel('exterior');
+
+  // Initialize specific UI components
+  if (!unitContextMenu) {
+    unitContextMenu = new UnitContextMenu();
+  }
+
+  // Restore HUD Visibility
+  switchView('map');
+  const hudCenter = document.getElementById('hud-center');
+  const actionPanel = document.getElementById('action-panel');
+  if (hudCenter) hudCenter.style.display = 'flex';
+  if (actionPanel) actionPanel.style.display = 'flex';
+
+  if (window.gridRenderer) {
+    const ts = GridConfig.TILE_SIZE;
+    window.gridRenderer.camera.x = 16 * ts - window.gridRenderer.camera.width / 2;
+    window.gridRenderer.camera.y = 25 * ts - window.gridRenderer.camera.height / 2;
+  }
+
+  setupPhaseUI.show();
+  switchDeckTab('roster');
+
+  const threatLabel = document.getElementById('threat-label');
+  if (threatLabel) threatLabel.textContent = '⏸ PLANNING — Click EXECUTE to start';
+
+  const execBtn = document.getElementById('execute-btn');
+  if (execBtn) {
+    execBtn.style.display = 'block';
+    execBtn.onclick = () => {
+      console.log('--- EXECUTION STARTED ---');
+      window.heistPhase = 'EXECUTING';
+
+      // Hide Planning UI
+      setupPhaseUI.hide();
+      if (unitContextMenu) unitContextMenu.hide(); // Hide queue editor
+
+      // Update HUD
+      if (threatLabel) threatLabel.textContent = '▶ EXECUTING';
+      execBtn.style.display = 'none';
+    };
+  }
+
+  // Spawn Crew Immediately
+  spawnActiveCrew();
+
+  // Selection Logic: Tile Click -> Select Unit
+  window.addEventListener('tileClicked', (e) => {
+    if (window.heistPhase !== 'PLANNING') return; // Only in planning for now
+
+    const tile = e.detail;
+    // Find unit on this tile
+    const clickedUnit = window.allUnits.find(u => u.isAt(tile.x, tile.y));
+
+    if (clickedUnit) {
+      console.log('Selected Unit:', clickedUnit.id);
+      window.selectedUnit = clickedUnit;
+      window.planningUnitId = clickedUnit.id;
+
+      if (unitContextMenu) {
+        unitContextMenu.setUnit(clickedUnit);
+      }
+      setupPhaseUI.refresh(); // Sync sidebar if needed
+    } else {
+      // Deselect if clicked empty space? Or keep selected?
+      // Keeping selected is better for workflow usually, unless clicking void.
+      // For now, allow clicking empty tile to just move camera or do nothing.
+    }
+  });
+
+  // Start a loop to update menu position
+  // Start Main Game Loop
+  let lastTime = 0;
+  const gameLoop = (timestamp) => {
+    const dt = (timestamp - lastTime) / 1000; // Delta time in seconds
+    lastTime = timestamp;
+
+    // 1. Update Menu (AR UI)
+    if (unitContextMenu && unitContextMenu.isVisible) {
+      unitContextMenu.updatePosition();
+    }
+
+    // 2. Update Units (AI Brains)
+    // Limit dt to prevent huge jumps if tab was backgrounded
+    const safeDt = Math.min(dt, 0.1);
+
+    if (window.heistPhase === 'EXECUTING' && window.allUnits) {
+      window.allUnits.forEach(unit => unit.update(safeDt));
+    }
+
+    requestAnimationFrame(gameLoop);
+  };
+  requestAnimationFrame(gameLoop);
+
+});
+
+
+// --- DECK TAB MANAGEMENT ---
+function switchDeckTab(tabName) {
+  // 1. Update Tabs
+  document.querySelectorAll('.deck-tab').forEach(t => t.classList.remove('active'));
+  const activeTab = document.getElementById(`tab-${tabName}`);
+  if (activeTab) activeTab.classList.add('active');
+
+  // 2. Update Pages
+  document.querySelectorAll('.deck-page').forEach(p => p.classList.remove('active'));
+  const activePage = document.getElementById(`deck-page-${tabName}`);
+  if (activePage) activePage.classList.add('active');
+}
+
+// Bind Tab Clicks
+document.getElementById('tab-roster')?.addEventListener('click', () => switchDeckTab('roster'));
+document.getElementById('tab-planning')?.addEventListener('click', () => switchDeckTab('planning'));
+
+
 window.addEventListener('heistEventLog', () => {
   // Optional: Auto-switch to map if urgent?
 });
 
-window.addEventListener('heistFinished', () => {
+// --- AAR SCREEN LOGIC ---
+window.addEventListener('heistFinished', (e) => {
   // Unlock View Tabs
   views.map.btn.disabled = false;
   views.shop.btn.disabled = false;
   updateGlobalHeat();
+
+  const result = e.detail;
+  if (!result) return; // Legacy fallback
+
+  const screen = document.getElementById('game-results-screen');
+  const title = document.getElementById('results-title');
+  const msg = document.getElementById('results-msg');
+  const btn = document.getElementById('results-btn');
+
+  if (screen && title && msg) {
+    screen.style.display = 'flex';
+
+    // Set Title
+    title.innerText = result.success ? "HEIST SUCCESSFUL" : "HEIST FAILED";
+    title.style.color = result.success ? "#00ff88" : "#ff4444";
+
+    // Build Breakdown HTML
+    let html = `<div class="aar-breakdown">`;
+
+    // Loot
+    html += `<div class="aar-row"><span class="label">GROSS LOOT</span><span class="value success">+$${result.loot || 0}</span></div>`;
+
+    // Expenses
+    if (result.expenses) {
+      if (result.expenses.wages > 0) {
+        html += `<div class="aar-row"><span class="label">CREW WAGES</span><span class="value danger">-$${result.expenses.wages}</span></div>`;
+      }
+      if (result.expenses.assets > 0) {
+        html += `<div class="aar-row"><span class="label">ASSETS/INTEL</span><span class="value danger">-$${result.expenses.assets}</span></div>`;
+      }
+    }
+
+    html += `<div class="aar-divider"></div>`;
+
+    // Net
+    const netClass = (result.netProfit >= 0) ? 'success' : 'danger';
+    const sign = (result.netProfit >= 0) ? '+' : '';
+    html += `<div class="aar-row total"><span class="label">NET PROFIT</span><span class="value ${netClass}">${sign}$${result.netProfit}</span></div>`;
+
+    html += `</div>`; // Close breakdown
+
+    // Heat Warning
+    if (result.heat >= 100) {
+      html += `<div class="aar-alert">⚠️ MAX HEAT REACHED - CREW BURNED</div>`;
+    }
+
+    msg.innerHTML = html;
+
+    // Button Handler (One-time binding cleanup needed?)
+    // Simplest: Clone button to strip listeners, or use onclick
+    btn.onclick = () => {
+      screen.style.display = 'none';
+
+      // Return to Safehouse / Next Day
+      GameManager.startNextDay();
+
+      // StartNextDay sets status to SELECTING_CONTRACT
+      // Renderer logic (initTileGrid/switchView) needs to handle this transition
+      // Dispatch event manually if needed, but startNextDay does internal state update.
+      // We need to tell the view to switch.
+      window.dispatchEvent(new CustomEvent('nextDayStarted'));
+
+      // Hide overlay elements
+      jobBoardUI.render(); // Force job board?
+    };
+  }
 });
 
 window.addEventListener('heatLaundered', () => updateGlobalHeat());

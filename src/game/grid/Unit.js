@@ -1,15 +1,11 @@
 import { GridConfig } from './GridConfig.js';
-import { TaskController } from './TaskController.js';
+import { TaskProcessor } from './TaskProcessor.js';
 
 /**
  * Movement speeds per stance (pixels per second)
- * Per SPEC_002 Section 6
+ * Configurable via GridConfig.CREW_SPEED
  */
-export const MovementSpeed = {
-    SNEAK: 60,
-    WALK: 120,
-    RUN: 200
-};
+export const MovementSpeed = GridConfig.CREW_SPEED;
 
 /**
  * Unit states for collision handling
@@ -56,6 +52,10 @@ export class Unit {
         // Reroute callback (set by external code)
         this.onNeedReroute = null;     // Called when unit needs a new path
 
+        // Escape properties
+        this.defaultExit = null;       // Assigned during planning
+        this.isExtracted = false;      // Set when unit reaches exit
+
         // Smoothing settings
         this.snapThreshold = 2;        // Pixels - snap to target when this close
         this.waypointTolerance = 10;   // Pixels - start turning toward next waypoint
@@ -64,11 +64,14 @@ export class Unit {
         this.color = '#00ff88';
         this.radius = 12;
 
-        // Task Controller (SPEC_003 - Command Queue)
-        this.taskController = new TaskController(this);
+        // Task Processor (The Brain)
+        this.taskProcessor = new TaskProcessor(this);
 
         // Register on starting tile
         this._registerOnTile();
+
+        // Enable hearing
+        this.enableStimulusListener();
     }
 
     /**
@@ -100,6 +103,119 @@ export class Unit {
         if (tile) {
             tile.clearOccupant();
         }
+    }
+
+    /**
+     * Check if this unit is at a specific grid position
+     * @param {number} gridX - Grid X coordinate
+     * @param {number} gridY - Grid Y coordinate
+     * @returns {boolean} True if unit is at this position
+     */
+    isAt(gridX, gridY) {
+        return this.gridPos.x === gridX && this.gridPos.y === gridY;
+    }
+
+    /**
+     * Start listening for global game stimuli (Sound, etc.)
+     * Called by TaskController/GameManager usually, or here for simplicity.
+     */
+    enableStimulusListener() {
+        if (this._stimulusHandler) return;
+
+        this._stimulusHandler = (e) => this._handleStimulus(e.detail);
+        window.addEventListener('gameStimulus', this._stimulusHandler);
+    }
+
+    /**
+     * Handle a perceived stimulus
+     * @param {Object} stimulus - { type, origin, radius, priority }
+     */
+    _handleStimulus(stimulus) {
+        if (stimulus.type !== 'AUDIO') return;
+
+        // Calculate distance to origin (Euclidean)
+        const dx = this.gridPos.x - stimulus.origin.x;
+        const dy = this.gridPos.y - stimulus.origin.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Check if we hear it
+        if (dist <= stimulus.radius) {
+            console.log(`[Unit ${this.id}] Heard stimulus at (${stimulus.origin.x}, ${stimulus.origin.y})! Distance: ${dist.toFixed(1)}`);
+
+            // Check if we are already investigating something higher priority?
+            // For now, just investigate.
+            // Push "Investigate" task to front of queue
+            // Task.investigate isn't defined yet, assume move + wait
+            // TODO: Ideally Import Task to create a proper task
+            // We'll trust TaskProcessor to have logic, or just manually queue move.
+            if (this.taskProcessor && this.taskProcessor.handleStimulus) {
+                this.taskProcessor.handleStimulus(stimulus);
+            }
+        }
+    }
+
+    destroy() {
+        if (this._stimulusHandler) {
+            window.removeEventListener('gameStimulus', this._stimulusHandler);
+        }
+    }
+
+    /**
+     * Main Update Loop
+     * @param {number} dt - Delta time in seconds
+     */
+    update(dt) {
+        // Delegate behavior to the Brain
+        this.taskProcessor.update(dt);
+    }
+
+    /**
+     * Move physics towards a target grid coordinate
+     * @param {number} targetGridX 
+     * @param {number} targetGridY 
+     * @param {number} dt 
+     * @returns {boolean} True if arrived
+     */
+    moveTowards(targetGridX, targetGridY, dt) {
+        const targetWorld = this._gridToWorld(targetGridX, targetGridY);
+
+        // Calculate vector
+        const dx = targetWorld.x - this.worldPos.x;
+        const dy = targetWorld.y - this.worldPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Snap if close
+        if (dist < this.snapThreshold) {
+            this.worldPos.x = targetWorld.x;
+            this.worldPos.y = targetWorld.y;
+            this.gridPos.x = targetGridX;
+            this.gridPos.y = targetGridY;
+            this._unregisterFromTile();
+            this._registerOnTile();
+            return true;
+        }
+
+        // Move
+        const speed = MovementSpeed[this.stance] || MovementSpeed.WALK;
+        const moveDist = speed * dt;
+
+        // Normalize and scale
+        const ratio = moveDist / dist;
+        this.worldPos.x += dx * ratio;
+        this.worldPos.y += dy * ratio;
+
+        const ts = GridConfig.TILE_SIZE;
+        const newGridX = Math.floor(this.worldPos.x / ts);
+        const newGridY = Math.floor(this.worldPos.y / ts);
+
+        if (newGridX !== this.gridPos.x || newGridY !== this.gridPos.y) {
+            this._unregisterFromTile(); // Remove from old
+            this.gridPos.x = newGridX;
+            this.gridPos.y = newGridY;
+            this._registerOnTile();     // Add to new
+        }
+
+        return false;
     }
 
     /**
@@ -189,10 +305,11 @@ export class Unit {
     }
 
     /**
-     * Update unit position (call every frame)
+     * Legacy path-queue based movement (used by setPath)
+     * This is separate from TaskProcessor movement
      * @param {number} deltaTime - Time since last frame in seconds
      */
-    update(deltaTime) {
+    updateLegacyMovement(deltaTime) {
         // Handle waiting state
         if (this.state === UnitState.WAITING) {
             this.waitTime += deltaTime;
@@ -362,7 +479,8 @@ export class Unit {
      * @param {Pathfinder} pathfinder - Pathfinder instance
      */
     setPathfinder(pathfinder) {
-        this.taskController.pathfinder = pathfinder;
+        // TaskProcessor uses window.pathfinder directly
+        // Keeping this for API compatibility
     }
 
     /**
@@ -370,7 +488,8 @@ export class Unit {
      * @param {Task} task - Task to add
      */
     assignTask(task) {
-        this.taskController.addTask(task);
+        // Legacy support - or map to taskProcessor if needed
+        console.warn('Unit.assignTask is deprecated. Use GameManager.gameState.simulation.plan');
     }
 
     /**
@@ -385,6 +504,6 @@ export class Unit {
      * Get current task status for UI
      */
     getTaskStatus() {
-        return this.taskController.getStatus();
+        return this.taskProcessor ? this.taskProcessor.state : 'OFFLINE';
     }
 }

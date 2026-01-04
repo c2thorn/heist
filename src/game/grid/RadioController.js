@@ -180,6 +180,72 @@ export class RadioController {
         this._applyStanceToUnits();
         console.log('[RadioController] Reset to SILENT_RUNNING');
     }
+    /**
+     * Render quick-trigger buttons for purchased abilities
+     * @param {string} containerId - DOM ID of the container
+     */
+    renderAbilities(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        // Get active abilities from ArrangementEngine
+        // We need to import arrangementEngine or pass it in. 
+        // Ideally we import it at the top, but circular deps might be an issue?
+        // Let's assume global access or dynamic import if needed.
+        // Actually, arrangementEngine is a singleton export from existing file.
+        // We will assume window.arrangementEngine or import it.
+        const engine = window.arrangementEngine;
+        if (!engine) return;
+
+        const abilities = engine.getActiveAbilities();
+
+        if (abilities.length === 0) {
+            // Optional: Show placeholder or nothing
+            return;
+        }
+
+        abilities.forEach(ability => {
+            const btn = this._createAbilityButton(ability, engine);
+            container.appendChild(btn);
+        });
+    }
+
+    _createAbilityButton(ability, engine) {
+        const btn = document.createElement('button');
+        btn.className = 'ability-btn';
+
+        // Icon (map based on ID/Type)
+        let icon = '⚡';
+        if (ability.id.includes('phone')) icon = '📞';
+        if (ability.id.includes('bribe')) icon = '🤝';
+
+        btn.innerHTML = `
+            <span class="ability-icon">${icon}</span>
+            <span class="ability-name">${ability.name}</span>
+            <span class="ability-uses">${ability.usesRemaining}</span>
+        `;
+
+        btn.onclick = () => {
+            if (engine.trigger(ability.id)) {
+                // Update UI
+                const usesSpan = btn.querySelector('.ability-uses');
+                if (usesSpan) usesSpan.innerText = ability.usesRemaining;
+
+                if (ability.usesRemaining <= 0) {
+                    btn.disabled = true;
+                    btn.classList.add('exhausted');
+                }
+
+                // Flash effect
+                btn.classList.add('triggered');
+                setTimeout(() => btn.classList.remove('triggered'), 200);
+            }
+        };
+
+        return btn;
+    }
 }
 
 // Export singleton instance

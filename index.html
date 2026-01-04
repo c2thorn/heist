@@ -65,6 +65,8 @@
       <div id="map-nodes"></div>
       <div id="crew-token" class="hidden"></div>
     </div>
+    <!-- UI OVERLAY LAYER - Floating menus, unit context menus -->
+    <div id="game-ui-layer"></div>
   </div>
 
   <div id="hud-layer">
@@ -120,19 +122,33 @@
 
     <!-- COMMAND DECK -->
     <div id="command-deck">
-      <div class="deck-section" id="active-section">
-        <div class="section-label">ACTIVE STACK</div>
-        <div id="active-list-panel" class="deck-list"></div>
+      <!-- DECK TABS -->
+      <div id="deck-tabs">
+        <button id="tab-roster" class="deck-tab active">ROSTER</button>
+        <button id="tab-planning" class="deck-tab">PLANNING</button>
       </div>
-      <div class="deck-divider"></div>
-      <div id="roster-section" class="deck-section">
-        <div class="section-label">RESERVES</div>
-        <div id="roster-list-panel" class="deck-list"></div>
+
+      <!-- PAGE: ROSTER (Default) -->
+      <div id="deck-page-roster" class="deck-page active">
+        <div class="deck-section" id="active-section">
+          <div class="section-label">ACTIVE STACK</div>
+          <div id="active-list-panel" class="deck-list"></div>
+        </div>
+        <div class="deck-divider"></div>
+        <div id="roster-section" class="deck-section">
+          <div class="section-label">RESERVES</div>
+          <div id="roster-list-panel" class="deck-list"></div>
+        </div>
+        <div class="deck-divider"></div>
+        <div id="stash-section" class="deck-section">
+          <div class="section-label">STASH</div>
+          <div id="stash-list-panel" class="deck-list"></div>
+        </div>
       </div>
-      <div class="deck-divider"></div>
-      <div id="stash-section" class="deck-section">
-        <div class="section-label">STASH</div>
-        <div id="stash-list-panel" class="deck-list"></div>
+
+      <!-- PAGE: PLANNING (Setup Phase) -->
+      <div id="deck-page-planning" class="deck-page">
+        <!-- Populated by SetupPhaseUI -->
       </div>
     </div>
   </div>
@@ -143,10 +159,15 @@
     document.getElementById('execute-btn')?.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('startHeist'));
 
+      // Allow the renderer/game loop to handle UI state changes via event listeners
+      // instead of hardcoding style changes here immediately
+    });
+
+    // Global Heist Start Handler
+    window.addEventListener('startHeist', () => {
       // Hide execute button
       const btn = document.getElementById('execute-btn');
       if (btn) btn.style.display = 'none';
-
       // Enable radio buttons
       document.querySelectorAll('.radio-btn').forEach(b => b.disabled = false);
       document.getElementById('radio-panel')?.classList.remove('disabled');
@@ -156,8 +177,8 @@
     // Radio Panel handlers (only work during EXECUTING phase)
     document.getElementById('btn-silent')?.addEventListener('click', () => {
       if (window.heistPhase !== 'EXECUTING' || !window.radioController) return;
-      window.radioController.silentRunning();
-      updateRadioButtons('SILENT_RUNNING');
+      window.radioController.silentRunning;
+      dateRadioButtons('SILENT_RUNNING');
     });
 
     document.getElementById('btn-loud')?.addEventListener('click', () => {
@@ -169,6 +190,10 @@
     document.getElementById('btn-scram')?.addEventListener('click', () => {
       if (window.heistPhase !== 'EXECUTING' || !window.radioController) return;
       window.radioController.scram();
+      // Set flag so TaskProcessors know to abort
+      if (window.GameManager) {
+        window.GameManager.gameState.flags.scram = true;
+      }
       updateRadioButtons('SCRAM');
     });
 

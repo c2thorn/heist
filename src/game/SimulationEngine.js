@@ -106,16 +106,41 @@ export const SimulationEngine = {
         const lastNodeId = pathIds[pathIds.length - 1];
         const lastNode = mapNodes.find(n => n.id === lastNodeId);
 
+        let finalOutcome = 'FAILURE';
         if (lastNode && lastNode.type === 'EXIT') {
+            finalOutcome = 'SUCCESS';
             console.log(`--- HEIST COMPLETE: SUCCESS (Loot: $${lootSecured}) ---`);
             if (scene) scene.showGameOver(true, `Mission Complete. Secured $${lootSecured}.`);
         } else {
             console.log("--- HEIST TERMINATED: NOT AT EXIT ---");
         }
 
-        window.dispatchEvent(new CustomEvent('heistFinished'));
+        // Calculate Expenses
+        // 1. Crew Wages
+        const crewWages = crew.reduce((sum, c) => sum + (c.wage || 0), 0);
+
+        // 2. Asset Costs (Retrieved from ArrangementEngine if possible, or tracked)
+        // Ideally GameManager tracks 'dailyExpenses' or similar.
+        // For now, assume 0 or we need to add tracking.
+        const assetCosts = 0; // TODO: Track this in ArrangementEngine/GameManager
+
+        const heistResult = {
+            success: finalOutcome === 'SUCCESS',
+            loot: lootSecured,
+            heat: GameManager.gameState.resources.heat,
+            expenses: {
+                wages: crewWages,
+                assets: assetCosts
+            },
+            netProfit: lootSecured - crewWages - assetCosts
+        };
+
+        window.dispatchEvent(new CustomEvent('heistFinished', {
+            detail: heistResult
+        }));
+
         this.isRunning = false;
-        return { success: true, loot: lootSecured };
+        return heistResult;
     },
 
     resolveEncounter(node, crew) {

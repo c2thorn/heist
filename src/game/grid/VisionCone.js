@@ -30,6 +30,29 @@ export class VisionCone {
 
         // Decay rate when out of sight
         this.decayRate = 0.3;                      // Per second
+
+        // Global Modifiers
+        this.globalBlindnessVignette = 0.0;        // 0.0 = clear, 1.0 = blind
+        this.baseRange = this.range;               // Store base range
+
+        // Listen for Global Effects (Power Cuts, etc)
+        this._setupGlobalListeners();
+    }
+
+    _setupGlobalListeners() {
+        window.addEventListener('globalEffectStart', (e) => {
+            if (e.detail.type === 'VISION_DAMPENING') {
+                console.log('[VisionCone] Vision Dampening Active');
+                this.range = 0; // Temporary Blindness
+            }
+        });
+
+        window.addEventListener('globalEffectEnd', (e) => {
+            if (e.detail.type === 'VISION_DAMPENING') {
+                console.log('[VisionCone] Vision Restored');
+                this.range = this.baseRange;
+            }
+        });
     }
 
     /**

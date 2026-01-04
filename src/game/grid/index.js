@@ -18,6 +18,8 @@ export { ThreatClock, ThreatZone, threatClock } from './ThreatClock.js';
 export { RadioController, RadioStance, radioController } from './RadioController.js';
 export { SectorManager, SectorState } from './SectorManager.js';
 export { ArrangementEngine, ArrangementType, arrangementEngine } from './ArrangementEngine.js';
+export { Interactable, InteractableType, InteractableState, Door, Computer, Safe, SecurityPanel } from './Interactable.js';
+export { SkillCheck, SkillCheckResult } from './SkillCheck.js';
 
 
 

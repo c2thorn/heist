@@ -1,4 +1,6 @@
 import { GridConfig } from './GridConfig.js';
+import { EntityLayer } from './EntityLayer.js';
+import { SectorIcon } from './SectorIcon.js';
 
 /**
  * GridRenderer - Canvas-based tile grid renderer with camera/viewport
@@ -16,11 +18,17 @@ export class GridRenderer {
         this.ctx = canvas.getContext('2d');
         this.tileMap = tileMap;
 
-        // Units to render
+        // Units to render (legacy - kept for compatibility)
         this.units = [];
 
         // Vision cones to render (for guards/cameras)
         this.visionCones = [];
+
+        // Interactables to render (legacy - kept for compatibility)
+        this.interactables = [];
+
+        // NEW: Unified entity layer system
+        this.entityLayer = new EntityLayer();
 
         // Rendering settings
         this.tileSize = GridConfig.TILE_SIZE;
@@ -53,7 +61,7 @@ export class GridRenderer {
             [GridConfig.TILE_TYPE.VENT]: '#2a2a3a',
             hiddenOverlay: 'rgba(0, 0, 0, 0.9)',
             revealedOverlay: 'rgba(0, 0, 0, 0.5)',
-            gridLine: 'rgba(255, 255, 255, 0.1)',
+            gridLine: 'rgba(255, 255, 255, 0.05)',
             wallOutline: '#0d0d1a'
         };
 
@@ -68,6 +76,13 @@ export class GridRenderer {
 
         // Bind input handlers
         this._setupInputHandlers();
+
+        // Setup Phase Hover State
+        this.hoveredAssetId = null;
+        window.addEventListener('assetHover', (e) => {
+            const { assetId, hovering } = e.detail;
+            this.hoveredAssetId = hovering ? assetId : null;
+        });
     }
 
     /**
@@ -93,6 +108,32 @@ export class GridRenderer {
      */
     getUnit(unitId) {
         return this.units.find(u => u.id === unitId) || null;
+    }
+
+    /**
+     * Add an interactable to be rendered
+     * @param {Interactable} interactable - The interactable to add
+     */
+    addInteractable(interactable) {
+        this.interactables.push(interactable);
+    }
+
+    /**
+     * Remove an interactable
+     * @param {string} id - ID of interactable to remove
+     */
+    removeInteractable(id) {
+        this.interactables = this.interactables.filter(i => i.id !== id);
+    }
+
+    /**
+     * Get interactable at a grid position
+     * @param {number} gridX - Grid X
+     * @param {number} gridY - Grid Y
+     * @returns {Interactable|null}
+     */
+    getInteractableAt(gridX, gridY) {
+        return this.interactables.find(i => i.gridX === gridX && i.gridY === gridY) || null;
     }
 
     /**
@@ -149,7 +190,7 @@ export class GridRenderer {
      * Setup mouse and keyboard input handlers
      */
     _setupInputHandlers() {
-        // Mouse move - update hovered tile
+        // Mouse move - update hovered entities
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
             const screenX = e.clientX - rect.left;
@@ -168,6 +209,40 @@ export class GridRenderer {
             const world = this.screenToWorld(screenX, screenY);
             const gridPos = this.tileMap.worldToGrid(world.x, world.y);
             this.hoveredTile = this.tileMap.getTile(gridPos.x, gridPos.y);
+
+            // NEW: Check EntityLayer first (unified system)
+            const hoveredEntity = this.entityLayer.updateHover(screenX, screenY, this.camera);
+
+            // Legacy: Check for hovered interactable
+            this.hoveredInteractable = null;
+            const hitRadius = this.tileSize * 0.5;
+            for (const interactable of this.interactables) {
+                const iWorldPos = interactable.getWorldPos();
+                const iScreenPos = this.worldToScreen(iWorldPos.x, iWorldPos.y);
+                const dist = Math.hypot(screenX - iScreenPos.x, screenY - iScreenPos.y);
+                if (dist < hitRadius) {
+                    this.hoveredInteractable = interactable;
+                    break;
+                }
+            }
+
+            // Legacy: Check for hovered unit
+            this.hoveredUnit = null;
+            for (const unit of this.units) {
+                const uScreenPos = this.worldToScreen(unit.worldPos.x, unit.worldPos.y);
+                const dist = Math.hypot(screenX - uScreenPos.x, screenY - uScreenPos.y);
+                if (dist < unit.radius + 5) {
+                    this.hoveredUnit = unit;
+                    break;
+                }
+            }
+
+            // Update cursor style
+            if (hoveredEntity || this.hoveredInteractable || this.hoveredUnit) {
+                this.canvas.style.cursor = 'pointer';
+            } else {
+                this.canvas.style.cursor = 'default';
+            }
         });
 
         // Mouse leave
@@ -322,24 +397,18 @@ export class GridRenderer {
             }
         }
 
-        // Highlight hovered tile
-        if (this.hoveredTile) {
-            const screen = this.worldToScreen(
-                this.hoveredTile.x * ts,
-                this.hoveredTile.y * ts
-            );
-
-            ctx.strokeStyle = '#ffcc00';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(screen.x + 1, screen.y + 1, ts - 2, ts - 2);
-            ctx.lineWidth = 1;
-        }
+        // Tile hover highlight removed - focus on units/interactables instead
 
         // Render vision cones (between tiles and units)
         this._renderVisionCones();
 
+        // Render interactables
+        this._renderInteractables();
+
         // Render units on top of tiles
         this._renderUnits();
+
+        // EntityLayer overlay now rendered in startRenderLoop (after planning overlay)
     }
 
     /**
@@ -347,8 +416,25 @@ export class GridRenderer {
      */
     _renderUnits() {
         const ctx = this.ctx;
+        const ts = this.tileSize;
 
         for (const unit of this.units) {
+            // 1. VISIBILITY CHECK (Fog of War & Planning)
+            const gridPos = this.tileMap.worldToGrid(unit.worldPos.x, unit.worldPos.y);
+            const tile = this.tileMap.getTile(gridPos.x, gridPos.y);
+
+            const isCrew = unit.id.startsWith('crew') || unit.isFriendly;
+
+            // In PLANNING, we act based on Intel (REVEALED vs HIDDEN)
+            // In EXECUTING, we act based on Fog (REVEALED/VISIBLE vs HIDDEN)
+            // Always show Crew
+            if (!isCrew) {
+                // If tile is hidden, hide the unit
+                if (tile && tile.visibility === GridConfig.VISIBILITY.HIDDEN) {
+                    continue;
+                }
+            }
+
             const screenPos = unit.getScreenPos(this.camera);
 
             // Skip if off-screen
@@ -357,7 +443,12 @@ export class GridRenderer {
                 continue;
             }
 
-            const radius = unit.radius || 12;
+            const baseRadius = unit.radius || 12;
+            const isHovered = this.hoveredUnit === unit;
+            const isSelected = window.selectedUnit === unit;
+
+            // Scale up on hover
+            const radius = isHovered ? baseRadius * 1.15 : baseRadius;
 
             // Draw waiting indicator (pulsing red ring)
             if (unit.state === 'WAITING') {
@@ -370,15 +461,39 @@ export class GridRenderer {
                 ctx.lineWidth = 1;
             }
 
+            // Selection ring (green glow for selected unit)
+            if (isSelected) {
+                ctx.save();
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, radius + 6, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Hover glow
+            if (isHovered && !isSelected) {
+                ctx.save();
+                ctx.shadowColor = unit.color || '#00ff88';
+                ctx.shadowBlur = 10;
+            }
+
             // Draw unit circle
             ctx.beginPath();
             ctx.arc(screenPos.x, screenPos.y, radius, 0, Math.PI * 2);
             ctx.fillStyle = unit.color || '#00ff88';
             ctx.fill();
-            ctx.strokeStyle = unit.state === 'WAITING' ? '#ff6666' : '#ffffff';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = isHovered ? '#ffffff' : (unit.state === 'WAITING' ? '#ff6666' : 'rgba(255,255,255,0.8)');
+            ctx.lineWidth = isHovered ? 3 : 2;
             ctx.stroke();
             ctx.lineWidth = 1;
+
+            if (isHovered && !isSelected) {
+                ctx.restore();
+            }
 
             // Draw direction indicator if moving
             if (unit.isMoving && unit.currentTarget) {
@@ -403,6 +518,118 @@ export class GridRenderer {
                     ctx.lineWidth = 1;
                 }
             }
+        }
+    }
+
+    /**
+     * Render all interactables
+     */
+    _renderInteractables() {
+        const ctx = this.ctx;
+        const ts = this.tileSize;
+
+        for (const interactable of this.interactables) {
+            // Check visibility - skip if in unrevealed area
+            const tile = this.tileMap.getTile(interactable.gridX, interactable.gridY);
+            if (tile && tile.visibility === GridConfig.VISIBILITY.HIDDEN) {
+                continue; // Don't show interactables in fog
+            }
+
+            const worldPos = interactable.getWorldPos();
+            const screenPos = this.worldToScreen(worldPos.x, worldPos.y);
+
+            // Skip if off-screen
+            if (screenPos.x < -ts || screenPos.x > this.camera.width + ts ||
+                screenPos.y < -ts || screenPos.y > this.camera.height + ts) {
+                continue;
+            }
+
+            // Determine color and icon based on type and state
+            let color = interactable.color || '#ffcc00';
+            let icon = '?';
+
+            switch (interactable.type) {
+                case 'SAFE':
+                    icon = '$';
+                    break;
+                case 'COMPUTER':
+                    icon = '💻';
+                    break;
+                case 'PANEL':
+                    icon = '⚡';
+                    break;
+                case 'DOOR':
+                    icon = '🔒';
+                    break;
+            }
+
+            // Dim if completed
+            if (interactable.state === 'COMPLETED') {
+                color = '#666666';
+            }
+
+            // Check if hovered
+            const isHovered = this.hoveredInteractable === interactable;
+
+            // Draw the interactable marker
+            const size = isHovered ? ts * 0.7 : ts * 0.6; // Scale up on hover
+
+            // Glow effect on hover
+            if (isHovered) {
+                ctx.save();
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            }
+
+            ctx.fillStyle = color;
+            ctx.strokeStyle = isHovered ? '#ffffff' : 'rgba(255,255,255,0.7)';
+            ctx.lineWidth = isHovered ? 3 : 2;
+
+            ctx.beginPath();
+            ctx.roundRect(screenPos.x - size / 2, screenPos.y - size / 2, size, size, 4);
+            ctx.fill();
+            ctx.stroke();
+            ctx.lineWidth = 1;
+
+            if (isHovered) {
+                ctx.restore();
+            }
+
+            // Draw icon
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 14px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(icon, screenPos.x, screenPos.y);
+
+            // Draw progress bar if in progress
+            if (interactable.state === 'IN_PROGRESS') {
+                const barWidth = ts * 0.8;
+                const barHeight = 6;
+                const barX = screenPos.x - barWidth / 2;
+                const barY = screenPos.y - size / 2 - 10;
+                const progress = interactable.getProgressPercent();
+
+                // Background
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+
+                // Progress fill
+                ctx.fillStyle = '#00ff88';
+                ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+
+                // Border
+                ctx.strokeStyle = '#ffffff';
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
+            }
+
+            // Draw label
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(interactable.label, screenPos.x, screenPos.y + size / 2 + 12);
         }
     }
 
@@ -438,10 +665,29 @@ export class GridRenderer {
     /**
      * Render all vision cones
      */
+    /**
+     * Render all vision cones
+     */
     _renderVisionCones() {
         const ctx = this.ctx;
 
+        // 1. PLANNING CHECK
+        if (window.heistPhase === 'PLANNING') return;
+
         for (const { cone, color, alertColor } of this.visionCones) {
+            // 2. FOG CHECK
+            // We need to find the unit associated with this cone to check if they are hidden.
+            // This is a bit tricky as cone doesn't explicitly link back to unit ID in this list, 
+            // but we can check the cone's origin position against the map visibility.
+
+            const originGrid = this.tileMap.worldToGrid(cone.x, cone.y);
+            const tile = this.tileMap.getTile(originGrid.x, originGrid.y);
+
+            // If origin tile is HIDDEN, don't show cone.
+            if (tile && tile.visibility === GridConfig.VISIBILITY.HIDDEN) {
+                continue;
+            }
+
             const vertices = cone.getConeVertices();
             if (vertices.length < 3) continue;
 
@@ -484,11 +730,204 @@ export class GridRenderer {
             this.lastFrameTime = currentTime;
 
             this._updateCamera(deltaTime);
-            this.updateUnits(deltaTime);  // Update unit positions
+            // Unit updates removed - handled by main game loop in renderer.js
             this.render();
+
+            // Render Planning Overlay if in Setup Phase
+            if (window.heistPhase === 'PLANNING') {
+                this._renderPlanningOverlay();
+            }
+
+            // Render EntityLayer overlay LAST (on top of everything)
+            this.entityLayer.render(this.ctx, this.camera);
+
             requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
+    }
+
+    /**
+     * Render the Setup Phase overlay (Blueprints, Icons)
+     */
+    _renderPlanningOverlay() {
+        if (!window.sectorManager) return;
+        const ctx = this.ctx;
+        const ts = this.tileSize;
+
+        // 1. Sync Sector Icons to EntityLayer
+        const sectors = window.sectorManager.getAllSectors();
+        for (const sector of sectors) {
+            if (sector.state === 'HIDDEN') {
+                // Render blueprint tiles
+                this._renderSectorBlueprint(sector);
+
+                // Create/update SectorIcon in EntityLayer
+                const iconId = `sector_icon_${sector.id}`;
+                let icon = this.entityLayer.get(iconId);
+
+                if (!icon) {
+                    // Calculate sector center
+                    const zone = this.tileMap.getZone(sector.id);
+                    if (zone && zone.tiles.length > 0) {
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        for (const tileId of zone.tiles) {
+                            const tile = this.tileMap.getTileById(tileId);
+                            if (tile) {
+                                minX = Math.min(minX, tile.x);
+                                minY = Math.min(minY, tile.y);
+                                maxX = Math.max(maxX, tile.x);
+                                maxY = Math.max(maxY, tile.y);
+                            }
+                        }
+
+                        const centerX = Math.floor((minX + maxX) / 2);
+                        const centerY = Math.floor((minY + maxY) / 2);
+
+                        icon = new SectorIcon({
+                            sectorId: sector.id,
+                            centerX: centerX,
+                            centerY: centerY,
+                            label: sector.id,
+                            intelCost: sector.cost || 0
+                        });
+                        this.entityLayer.add(icon);
+                    }
+                }
+
+                if (icon) icon.isVisible = true;
+            } else {
+                // Sector is revealed - hide its icon
+                const iconId = `sector_icon_${sector.id}`;
+                const icon = this.entityLayer.get(iconId);
+                if (icon) icon.isVisible = false;
+            }
+        }
+
+        // 2. Render Arrangements (Asset Icons)
+        const assets = window.arrangementEngine.available;
+        for (const asset of assets) {
+            // Only show if sector is revealed (or no sector req)
+            if (asset.reqSector && !window.sectorManager.isSectorRevealed(asset.reqSector)) {
+                continue;
+            }
+
+            // Only show if it has a map location
+            if (asset.payload && asset.payload.x !== undefined && asset.payload.y !== undefined) {
+                const worldPos = this.tileMap.gridToWorld(asset.payload.x, asset.payload.y);
+                const screenPos = this.worldToScreen(worldPos.x, worldPos.y);
+
+                // Skip if offscreen
+                if (screenPos.x < -ts || screenPos.x > this.camera.width + ts ||
+                    screenPos.y < -ts || screenPos.y > this.camera.height + ts) {
+                    continue;
+                }
+
+                // Determine icon and color
+                let icon = '📦';
+                let color = '#00ff88'; // Available green
+
+                if (asset.purchased) {
+                    color = '#ffffff'; // Owned white/bright
+                    icon = '✅';
+                } else if (window.arrangementEngine.getCash() < asset.cost) {
+                    color = '#ff4444'; // Can't afford red
+                }
+
+                // Override icon based on type (simple mapping for now)
+                if (asset.id.includes('phone')) icon = '📞';
+                if (asset.id.includes('power')) icon = '⚡';
+                if (asset.id.includes('vault')) icon = '🔢';
+                if (asset.id.includes('bribe')) icon = '🤝';
+
+                // Hover Highlight from Tray
+                if (this.hoveredAssetId === asset.id) {
+                    // Draw connecting line indicator or just big glow
+                    ctx.shadowColor = '#00ff88';
+                    ctx.shadowBlur = 20;
+
+                    // Draw target reticle
+                    ctx.strokeStyle = '#00ff88';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(screenPos.x, screenPos.y, 20, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                this._renderIconAt(screenPos.x, screenPos.y, icon, color, 20);
+                ctx.shadowBlur = 0; // Reset
+
+                // Draw price if not purchased
+                if (!asset.purchased) {
+                    ctx.fillStyle = color;
+                    ctx.font = '10px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`$${asset.cost}`, screenPos.x, screenPos.y + 16);
+                }
+            }
+        }
+    }
+
+    /**
+     * Render a sector as a blueprint (outline + icon)
+     */
+    _renderSectorBlueprint(sector) {
+        const ctx = this.ctx;
+        const ts = this.tileSize;
+        const zone = this.tileMap.getZone(sector.id);
+        if (!zone) return;
+
+        // Calculate bounding box for center icon
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let hasTiles = false;
+
+        // Draw tile outlines - subtle blueprint style
+        ctx.strokeStyle = 'rgba(0, 136, 255, 0.15)'; // Very faint blue outline
+        ctx.lineWidth = 1;
+        ctx.fillStyle = 'rgba(0, 136, 255, 0.05)'; // Nearly transparent blue fill
+
+        for (const tileId of zone.tiles) {
+            const tile = this.tileMap.getTileById(tileId);
+            if (!tile) continue;
+
+            hasTiles = true;
+            const screen = this.worldToScreen(tile.x * ts, tile.y * ts);
+
+            // Skip offscreen
+            if (screen.x < -ts || screen.x > this.camera.width ||
+                screen.y < -ts || screen.y > this.camera.height) {
+                // We still process bounds for center text, or maybe optimize later
+            }
+
+            // Update bounds
+            minX = Math.min(minX, tile.x * ts);
+            minY = Math.min(minY, tile.y * ts);
+            maxX = Math.max(maxX, tile.x * ts + ts);
+            maxY = Math.max(maxY, tile.y * ts + ts);
+
+            // Draw tile box (simple blueprint style)
+            // Just drawing rects for now. Ideal would be merged outline.
+            ctx.fillRect(screen.x, screen.y, ts, ts);
+            ctx.strokeRect(screen.x, screen.y, ts, ts);
+        }
+
+        // Icon now rendered via EntityLayer (SectorIcon class)
+    }
+
+    /**
+     * Helper to render a centered icon
+     */
+    _renderIconAt(x, y, icon, color, size) {
+        const ctx = this.ctx;
+        ctx.font = `${size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Glow effect
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = color;
+        ctx.fillText(icon, x, y);
+        ctx.shadowBlur = 0;
     }
 
     /**

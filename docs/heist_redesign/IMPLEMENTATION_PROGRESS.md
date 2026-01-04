@@ -13,7 +13,7 @@
 - Vision cones with raycasting and detection meters
 
 ### Phase 6: Command Queue ✅
-- `Task.js` - MOVE, WAIT, SIGNAL task types
+- `Task.js` - MOVE, WAIT, SIGNAL, INTERACT task types
 - `TaskController.js` - Per-unit queue processing
 - `SignalBus.js` - Task dependency system
 
@@ -31,11 +31,17 @@
 - Threat Bar with zone indicators
 - Planning vs Execution phase state
 
+### INTERACT System ✅ (NEW)
+- `Interactable.js` - Base class + Door, Computer, Safe, SecurityPanel
+- `SkillCheck.js` - 2d6 + modifier vs DC with criticals
+- Click-to-interact visual UI with progress bars
+- Skill check results in event log
+
 ---
 
 ## Deferred Items
 
-### 1. INTERACT Task Type
+### 1. Skill Check System (Partial)
 **SPEC**: 003 | **Priority**: High | **Effort**: 2-3 days
 
 Currently defined but not implemented. Needs interactable object system.

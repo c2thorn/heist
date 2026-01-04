@@ -47,5 +47,19 @@ export const GridConfig = {
     },
 
     // Diagonal movement multiplier (approx sqrt(2))
-    DIAGONAL_COST_MULTIPLIER: 1.4
+    DIAGONAL_COST_MULTIPLIER: 1.4,
+
+    // === CREW SETTINGS ===
+    // Movement speeds (pixels per second)
+    CREW_SPEED: {
+        SNEAK: 30,              // Very slow, stealthy
+        WALK: 60,               // Normal pace
+        RUN: 120                // Fast, loud
+    },
+
+    // Interaction timing
+    INTERACTION: {
+        BASE_DURATION: 4,       // Default seconds for an interaction
+        DURATION_MULTIPLIER: 1  // Global multiplier (0.5 = twice as fast)
+    }
 };

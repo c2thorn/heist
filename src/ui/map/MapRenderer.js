@@ -259,7 +259,9 @@ export class MapRenderer {
         document.getElementById('event-log').innerHTML = '';
 
         // We pass 'this' as the visualInterface. 
-        SimulationEngine.runHeist(plannedPath, activeCrew, this);
+        // LEGACY SIMULATION DISABLED - Using Grid System
+        // SimulationEngine.runHeist(plannedPath, activeCrew, this);
+        console.log("Legacy Heist Simulation skipped in favor of Grid System.");
     }
 
     // --- INTERFACE FOR SIMULATION ENGINE ---
