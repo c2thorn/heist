@@ -276,9 +276,36 @@ export class ArrangementEngine {
     }
 
     /**
-     * Load sample arrangements for testing
+     * Load arrangements from JSON data
+     * @param {Object} data - Arrangements data with { arrangements: [...] }
+     */
+    loadFromData(data) {
+        if (!data || !data.arrangements) {
+            console.warn('[ArrangementEngine] No arrangements data provided');
+            return;
+        }
+
+        for (const arr of data.arrangements) {
+            this.defineArrangement({
+                id: arr.id,
+                name: arr.name,
+                type: ArrangementType[arr.type] || ArrangementType.STATIC_MODIFIER,
+                cost: arr.cost || 100,
+                uses: arr.uses || 1,
+                reqSector: arr.reqSector || null,
+                description: arr.description || '',
+                payload: arr.payload || {}
+            });
+        }
+        console.log(`[ArrangementEngine] Loaded ${data.arrangements.length} arrangements from data`);
+    }
+
+    /**
+     * @deprecated Use loadFromData() with JSON import instead
      */
     loadSampleArrangements() {
+        console.warn('[ArrangementEngine] loadSampleArrangements is deprecated, use loadFromData()');
+        // Keeping for backward compatibility during transition
         this.defineArrangement({
             id: 'phone_distraction',
             name: 'Phone Distraction',
@@ -286,7 +313,7 @@ export class ArrangementEngine {
             cost: 200,
             uses: 2,
             description: 'Ring a phone to distract nearby guards',
-            payload: { effect: 'PHONE_DISTRACTION', x: 19, y: 9 }  // Moved away from guard
+            payload: { effect: 'PHONE_DISTRACTION', x: 19, y: 9 }
         });
 
         this.defineArrangement({
@@ -316,7 +343,7 @@ export class ArrangementEngine {
             cost: 400,
             reqSector: 'vault',
             description: 'Quick unlock vault door (1.5s vs 10s)',
-            payload: { effect: 'VAULT_BYPASS', x: 24, y: 21 }  // Icon position (not door position)
+            payload: { effect: 'VAULT_BYPASS', x: 24, y: 21 }
         });
     }
 }

@@ -18,6 +18,7 @@ import { UnitContextMenu } from './ui/UnitContextMenu';
 import './styles/context-menu.css';
 import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel } from './game/grid/index.js';
 import bankHeistData from './data/buildings/bank_heist.json';
+import bankHeistArrangements from './data/arrangements/bank_heist_arrangements.json';
 
 let unitContextMenu = null;
 
@@ -149,7 +150,8 @@ function initTileGrid() {
   window.sectorManager = sectorManager; // Mirror
 
   // Initialize Arrangement Engine with sample assets
-  arrangementEngine.loadSampleArrangements();
+  // Load arrangements from JSON data file
+  arrangementEngine.loadFromData(bankHeistArrangements);
   window.arrangementEngine = arrangementEngine;
 
   // Initialize heist phase state (PLANNING until player clicks EXECUTE HEIST)

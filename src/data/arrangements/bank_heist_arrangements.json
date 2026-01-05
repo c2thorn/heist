@@ -1,0 +1,54 @@
+{
+    "arrangements": [
+        {
+            "id": "phone_distraction",
+            "name": "Phone Distraction",
+            "type": "TRIGGERED_ABILITY",
+            "cost": 200,
+            "uses": 2,
+            "description": "Ring a phone to distract nearby guards",
+            "payload": {
+                "effect": "PHONE_DISTRACTION",
+                "x": 19,
+                "y": 9
+            }
+        },
+        {
+            "id": "power_cut",
+            "name": "Power Cut",
+            "type": "TRIGGERED_ABILITY",
+            "cost": 500,
+            "uses": 1,
+            "description": "Disable cameras for 30 seconds",
+            "payload": {
+                "effect": "POWER_CUT",
+                "duration": 30
+            }
+        },
+        {
+            "id": "bribe_guard",
+            "name": "Bribe Lobby Guard",
+            "type": "STATIC_MODIFIER",
+            "cost": 300,
+            "reqSector": "lobby",
+            "description": "The lobby guard looks the other way",
+            "payload": {
+                "effect": "REMOVE_GUARD",
+                "targetId": "guard_lobby"
+            }
+        },
+        {
+            "id": "vault_codes",
+            "name": "Vault Access Codes",
+            "type": "STATIC_MODIFIER",
+            "cost": 400,
+            "reqSector": "vault",
+            "description": "Quick unlock vault door (1.5s vs 10s)",
+            "payload": {
+                "effect": "VAULT_BYPASS",
+                "x": 24,
+                "y": 21
+            }
+        }
+    ]
+}
