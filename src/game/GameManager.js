@@ -80,7 +80,18 @@ class GameManager {
                 hires: [], // Daily recruits
                 items: []  // Daily items
             },
-            map: null
+            map: null,
+            // Grid-based heist state (replaces window.* globals)
+            grid: {
+                tileMap: null,
+                pathfinder: null,
+                units: [],
+                selectedUnit: null,
+                phase: 'PLANNING',  // PLANNING | EXECUTING
+                sectorManager: null,
+                crewSpawns: [],
+                gridRenderer: null
+            }
         };
     }
 
@@ -88,6 +99,32 @@ class GameManager {
         this.initGameState();
         window.dispatchEvent(new CustomEvent('gameReset'));
     }
+
+    // ===== Grid State Accessors =====
+
+    get tileMap() { return this.gameState.grid.tileMap; }
+    set tileMap(value) { this.gameState.grid.tileMap = value; }
+
+    get pathfinder() { return this.gameState.grid.pathfinder; }
+    set pathfinder(value) { this.gameState.grid.pathfinder = value; }
+
+    get units() { return this.gameState.grid.units; }
+    set units(value) { this.gameState.grid.units = value; }
+
+    get selectedUnit() { return this.gameState.grid.selectedUnit; }
+    set selectedUnit(value) { this.gameState.grid.selectedUnit = value; }
+
+    get heistPhase() { return this.gameState.grid.phase; }
+    set heistPhase(value) { this.gameState.grid.phase = value; }
+
+    get sectorManager() { return this.gameState.grid.sectorManager; }
+    set sectorManager(value) { this.gameState.grid.sectorManager = value; }
+
+    get crewSpawns() { return this.gameState.grid.crewSpawns; }
+    set crewSpawns(value) { this.gameState.grid.crewSpawns = value; }
+
+    get gridRenderer() { return this.gameState.grid.gridRenderer; }
+    set gridRenderer(value) { this.gameState.grid.gridRenderer = value; }
 
     checkEndConditions() {
         if (this.gameState.resources.heat >= this.gameState.resources.maxHeat) {

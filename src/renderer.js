@@ -71,7 +71,10 @@ function initTileGrid() {
   // Load building from JSON data
   const buildingResult = BuildingLoader.load(bankHeistData);
   tileMap = buildingResult.tileMap;
-  window.tileMap = tileMap;
+
+  // Store in GameManager (primary state)
+  GameManager.tileMap = tileMap;
+  window.tileMap = tileMap; // Mirror for transition
 
   // Create renderer with viewport matching the map area
   gridRenderer = new GridRenderer(canvas, tileMap, {
@@ -81,7 +84,8 @@ function initTileGrid() {
 
   // Initialize pathfinder
   pathfinder = new Pathfinder(tileMap);
-  window.pathfinder = pathfinder;
+  GameManager.pathfinder = pathfinder;
+  window.pathfinder = pathfinder; // Mirror
 
   // Add guards from building data
   for (const guard of buildingResult.guards) {
@@ -98,8 +102,10 @@ function initTileGrid() {
   window.testGuard = buildingResult.guards[0] || null;
 
   // Initialize empty units list for Heist Start
-  window.allUnits = [];
-  window.selectedUnit = null;
+  GameManager.units = [];
+  GameManager.selectedUnit = null;
+  window.allUnits = GameManager.units; // Mirror
+  window.selectedUnit = null; // Mirror
 
   // Expose Task and signalBus for console testing
   window.Task = Task;
@@ -111,9 +117,11 @@ function initTileGrid() {
   }
 
   // Store crew spawn points
-  window.crewSpawns = buildingResult.crewSpawns;
+  GameManager.crewSpawns = buildingResult.crewSpawns;
+  window.crewSpawns = GameManager.crewSpawns; // Mirror
 
-  window.gridRenderer = gridRenderer;
+  GameManager.gridRenderer = gridRenderer;
+  window.gridRenderer = gridRenderer; // Mirror
 
   // Initialize Radio Controller with units and exit point
   radioController.registerUnits([]);
@@ -137,20 +145,23 @@ function initTileGrid() {
       sectorManager.purchaseIntel(zoneId);
     }
   }
-  window.sectorManager = sectorManager;
+  GameManager.sectorManager = sectorManager;
+  window.sectorManager = sectorManager; // Mirror
 
   // Initialize Arrangement Engine with sample assets
   arrangementEngine.loadSampleArrangements();
   window.arrangementEngine = arrangementEngine;
 
   // Initialize heist phase state (PLANNING until player clicks EXECUTE HEIST)
-  window.heistPhase = 'PLANNING';  // PLANNING | EXECUTING
+  GameManager.heistPhase = 'PLANNING';
+  window.heistPhase = GameManager.heistPhase; // Mirror
   threatClock.pause();  // Clock paused during planning
 
   // Listen for map load (from Job Board)
   window.addEventListener('mapLoaded', () => {
     console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
-    window.heistPhase = 'PLANNING';
+    GameManager.heistPhase = 'PLANNING';
+    window.heistPhase = GameManager.heistPhase;
 
     // Reset ThreatClock for fresh heist (reset starts paused)
     threatClock.reset();
@@ -178,7 +189,8 @@ function initTileGrid() {
 
   // Listen for heist start
   window.addEventListener('startHeist', () => {
-    window.heistPhase = 'EXECUTING';
+    GameManager.heistPhase = 'EXECUTING';
+    window.heistPhase = GameManager.heistPhase;
     threatClock.resume();
     console.log('[Heist] EXECUTION PHASE STARTED!');
   });
@@ -479,10 +491,10 @@ function spawnActiveCrew() {
   console.log('Spawning/Updating Roster:', activeCrew);
 
   // Clear existing units
-  if (window.allUnits) {
-    window.allUnits.forEach(u => window.gridRenderer.removeUnit(u.id));
+  if (GameManager.units.length > 0) {
+    GameManager.units.forEach(u => window.gridRenderer.removeUnit(u.id));
+    GameManager.units.length = 0;  // Clear without breaking window.allUnits reference
   }
-  window.allUnits = [];
 
   // Entry Point - Find a walkable tile near intended spawn
   let entryX = 15;
@@ -497,7 +509,7 @@ function spawnActiveCrew() {
       [2, 0], [-2, 0], [0, 2], [0, -2]
     ];
     for (const [dx, dy] of offsets) {
-      const tile = window.tileMap.getTile(startX + dx, startY + dy);
+      const tile = GameManager.tileMap.getTile(startX + dx, startY + dy);
       if (tile && tile.isWalkable) {
         return { x: startX + dx, y: startY + dy };
       }
@@ -513,7 +525,7 @@ function spawnActiveCrew() {
     const x = spawn.x + (index % 2);
     const y = spawn.y + Math.floor(index / 2);
 
-    const unit = new Unit(member.id, x, y, window.tileMap);
+    const unit = new Unit(member.id, x, y, GameManager.tileMap);
     unit.color = '#00ff88'; // Default crew color
 
     // Assign Role Colors
@@ -522,11 +534,11 @@ function spawnActiveCrew() {
     else if (s.tech >= s.force && s.tech >= s.stealth) unit.color = '#0088ff';
     else unit.color = '#00ff88';
 
-    window.gridRenderer.addUnit(unit);
-    unit.setPathfinder(window.pathfinder);
+    GameManager.gridRenderer.addUnit(unit);
+    unit.setPathfinder(GameManager.pathfinder);
     unit.isFriendly = true;
 
-    window.allUnits.push(unit);
+    GameManager.units.push(unit);
   });
 
   // Defaults & Camera Focus
@@ -556,7 +568,8 @@ GameManager.events.on('crew-updated', () => {
 
 window.addEventListener('startHeist', () => {
   console.log('--- EXECUTION STARTED ---');
-  window.heistPhase = 'EXECUTING';
+  GameManager.heistPhase = 'EXECUTING';
+  window.heistPhase = GameManager.heistPhase;
   threatClock.resume();
 
   // Auto-switch back to Roster Tab
@@ -590,7 +603,8 @@ window.addEventListener('startHeist', () => {
 window.addEventListener('mapLoaded', () => {
   // ... items from previous mapLoaded ...
   console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
-  window.heistPhase = 'PLANNING';
+  GameManager.heistPhase = 'PLANNING';
+  window.heistPhase = GameManager.heistPhase;
 
   sectorManager.reset();
   sectorManager.setIntel(GameManager.gameState.meta.intel || 10);
@@ -629,7 +643,8 @@ window.addEventListener('mapLoaded', () => {
     execBtn.style.display = 'block';
     execBtn.onclick = () => {
       console.log('--- EXECUTION STARTED ---');
-      window.heistPhase = 'EXECUTING';
+      GameManager.heistPhase = 'EXECUTING';
+      window.heistPhase = GameManager.heistPhase;
 
       // Hide Planning UI
       setupPhaseUI.hide();
