@@ -199,13 +199,13 @@ export class ThreatClock {
     }
 
     /**
-     * Reset for new heist
+     * Reset for new heist (starts paused)
      */
     reset() {
         this.elapsedTime = 0;
         this.zone = ThreatZone.CASUAL;
-        this.isPaused = false;
-        console.log('[ThreatClock] Reset');
+        this.isPaused = true;  // Start paused - call resume() when heist begins
+        console.log('[ThreatClock] Reset (paused)');
     }
 
     /**

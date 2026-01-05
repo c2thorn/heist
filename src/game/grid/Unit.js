@@ -184,6 +184,11 @@ export class Unit {
         const dy = targetWorld.y - this.worldPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
+        // DEBUG: Log if distance is unexpectedly large (toggle with window.DEBUG_MOVEMENT = true)
+        if (window.DEBUG_MOVEMENT && dist > 100) {
+            console.warn(`[${this.id}] TELEPORT DETECTED! dist=${Math.round(dist)}px, worldPos:(${Math.round(this.worldPos.x)},${Math.round(this.worldPos.y)}), target:(${Math.round(targetWorld.x)},${Math.round(targetWorld.y)})`);
+        }
+
         // Snap if close
         if (dist < this.snapThreshold) {
             this.worldPos.x = targetWorld.x;

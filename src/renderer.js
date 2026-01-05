@@ -16,7 +16,8 @@ import { SimulationEngine } from './game/SimulationEngine';
 import { JobBoardUI } from './ui/JobBoardUI';
 import { UnitContextMenu } from './ui/UnitContextMenu';
 import './styles/context-menu.css';
-import { GridRenderer, TestMapGenerator, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel } from './game/grid/index.js';
+import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel } from './game/grid/index.js';
+import bankHeistData from './data/buildings/bank_heist.json';
 
 let unitContextMenu = null;
 
@@ -67,15 +68,10 @@ function initTileGrid() {
   // Calculate viewport size from the game-map container
   const rect = gameMap.getBoundingClientRect();
 
-  // Generate a test building for now
-  tileMap = TestMapGenerator.generateSimpleBuilding();
-  window.tileMap = tileMap; // Expose for Unit spawning
-
-  // Open some doors for pathfinding
-  const door1 = tileMap.getTile(15, 22);
-  const door2 = tileMap.getTile(16, 22);
-  if (door1) door1.openDoor();
-  if (door2) door2.openDoor();
+  // Load building from JSON data
+  const buildingResult = BuildingLoader.load(bankHeistData);
+  tileMap = buildingResult.tileMap;
+  window.tileMap = tileMap;
 
   // Create renderer with viewport matching the map area
   gridRenderer = new GridRenderer(canvas, tileMap, {
@@ -85,33 +81,21 @@ function initTileGrid() {
 
   // Initialize pathfinder
   pathfinder = new Pathfinder(tileMap);
-  window.pathfinder = pathfinder; // Expose globally for TaskProcessor
+  window.pathfinder = pathfinder;
 
-  // 4. Initialize Tile Grid Renderer
-  // ... (Pathfinder init)
+  // Add guards from building data
+  for (const guard of buildingResult.guards) {
+    gridRenderer.addUnit(guard);
+  }
 
-  // Guard Setup (Enemy)
-  // Create a test guard with vision cone
-  const guard = new Unit('guard_1', 15, 18, tileMap);
-  guard.color = '#ff4444';  // Red
-  guard.radius = 10;
-  gridRenderer.addUnit(guard);
+  // Add vision cones from building data
+  for (const cone of buildingResult.visionCones) {
+    gridRenderer.addVisionCone(cone);
+    guardVision = cone; // Store for animation loop
+  }
 
-  // Vision cone setup...
-  guardVision = new VisionCone({
-    range: 6,
-    fov: 90,
-    detectionRate: 0.8
-  });
-  guardVision.setPosition(
-    guard.gridPos.x * GridConfig.TILE_SIZE + GridConfig.TILE_SIZE / 2,
-    guard.gridPos.y * GridConfig.TILE_SIZE + GridConfig.TILE_SIZE / 2,
-    90  // Facing down
-  );
-  gridRenderer.addVisionCone(guardVision);
-
-  // Store guard reference for animation
-  window.testGuard = guard;
+  // Store guard reference for animation (first guard or null)
+  window.testGuard = buildingResult.guards[0] || null;
 
   // Initialize empty units list for Heist Start
   window.allUnits = [];
@@ -121,53 +105,19 @@ function initTileGrid() {
   window.Task = Task;
   window.signalBus = signalBus;
 
-  // Expose Task and signalBus for console testing
-  window.Task = Task;
-  window.signalBus = signalBus;
+  // Add interactables from building data
+  for (const interactable of buildingResult.interactables) {
+    gridRenderer.addInteractable(interactable);
+  }
 
-  // Create test interactables (in accessible locations near lobby/hallway)
-  const testSafe = new Safe({
-    id: 'lobby_safe',
-    gridX: 18,      // In lobby area
-    gridY: 25,
-    label: 'Lobby Safe',
-    lootValue: 2000,
-    dc: 7,
-    duration: 4
-  });
+  // Store crew spawn points
+  window.crewSpawns = buildingResult.crewSpawns;
 
-  const testComputer = new Computer({
-    id: 'lobby_terminal',
-    gridX: 12,      // In lobby area
-    gridY: 24,
-    label: 'Terminal',
-    intelReward: 3,
-    canDisableCameras: false,
-    dc: 6,
-    duration: 3
-  });
-
-  const testPanel = new SecurityPanel({
-    id: 'hallway_panel',
-    gridX: 10,      // In hallway (accessible from lobby)
-    gridY: 15,
-    label: 'Alarm Panel',
-    affectedZone: 'lobby',
-    dc: 7,
-    duration: 3
-  });
-
-  // Register interactables with renderer for display
-  gridRenderer.addInteractable(testSafe);
-  gridRenderer.addInteractable(testComputer);
-  gridRenderer.addInteractable(testPanel);
-
-  window.interactables = { testSafe, testComputer, testPanel };
-  window.gridRenderer = gridRenderer;  // Expose for click handling
+  window.gridRenderer = gridRenderer;
 
   // Initialize Radio Controller with units and exit point
   radioController.registerUnits([]);
-  radioController.setExitTile({ x: 15, y: 28 });  // Near map entrance
+  radioController.setExitTile({ x: 15, y: 28 });
   window.radioController = radioController;
   window.threatClock = threatClock;
 
@@ -180,9 +130,13 @@ function initTileGrid() {
   sectorManager.defineSector('server', { intelCost: 3, difficulty: 3 });
   sectorManager.defineSector('vault', { intelCost: 4, difficulty: 4 });
   sectorManager.defineSector('exterior', { intelCost: 1, difficulty: 0 });
-  // Reveal lobby by default for testing
-  sectorManager.purchaseIntel('lobby');
-  sectorManager.purchaseIntel('hallway');
+
+  // Reveal initial sectors from building data
+  if (bankHeistData.initiallyRevealed) {
+    for (const zoneId of bankHeistData.initiallyRevealed) {
+      sectorManager.purchaseIntel(zoneId);
+    }
+  }
   window.sectorManager = sectorManager;
 
   // Initialize Arrangement Engine with sample assets
@@ -197,6 +151,9 @@ function initTileGrid() {
   window.addEventListener('mapLoaded', () => {
     console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
     window.heistPhase = 'PLANNING';
+
+    // Reset ThreatClock for fresh heist (reset starts paused)
+    threatClock.reset();
 
     // Reset/Setup Managers
     sectorManager.reset();
@@ -229,27 +186,26 @@ function initTileGrid() {
   // Start render loop
   gridRenderer.startRenderLoop();
 
-  // Start vision/detection update loop
+  // Start vision/detection update loop (for guard AI, NOT unit movement)
   setInterval(() => {
     if (!guardVision || !window.allUnits) return;
 
-    // PAUSE AI DURING PLANNING
-    if (window.heistPhase === 'PLANNING') return;
-
+    // Always track time to prevent deltaTime jumps
     const now = performance.now();
     const deltaTime = (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
-    // Update TaskProcessor for each crew unit
-    for (const unit of window.allUnits) {
-      if (unit.taskProcessor) {
-        unit.taskProcessor.update(deltaTime);
-      }
-    }
+    // PAUSE AI DURING PLANNING
+    if (window.heistPhase === 'PLANNING') return;
+
+    // NOTE: Unit movement is handled by gameLoop, NOT here!
+    // The taskProcessor.update() was causing double-updates and teleporting.
 
     // Update ThreatClock (only during execution phase)
     if (window.heistPhase === 'EXECUTING') {
-      threatClock.update(deltaTime);
+      // Cap deltaTime to prevent huge jumps (e.g., from tab being backgrounded)
+      const safeDelta = Math.min(deltaTime, 0.1);
+      threatClock.update(safeDelta);
     }
 
     // Apply threat modifiers to guard vision
@@ -610,6 +566,9 @@ window.addEventListener('startHeist', () => {
   // TaskProcessor now reads objectives directly from GameManager.gameState.simulation.plan
   // No legacy hydration needed - just log for debugging
   window.allUnits.forEach(unit => {
+    // DEBUG: Log unit position at execution start
+    console.log(`[EXEC START] ${unit.id} gridPos: (${unit.gridPos.x},${unit.gridPos.y}) worldPos: (${Math.round(unit.worldPos.x)},${Math.round(unit.worldPos.y)})`);
+
     const plan = GameManager.gameState.simulation.plan[unit.id];
     if (plan && plan.length > 0) {
       console.log(`[${unit.id}] has ${plan.length} objectives queued`);
@@ -727,6 +686,16 @@ window.addEventListener('mapLoaded', () => {
 
     if (window.heistPhase === 'EXECUTING' && window.allUnits) {
       window.allUnits.forEach(unit => unit.update(safeDt));
+
+      // DEBUG: Log positions every 5 frames (toggle with window.DEBUG_MOVEMENT = true)
+      if (window.DEBUG_MOVEMENT) {
+        window._debugFrame = (window._debugFrame || 0) + 1;
+        if (window._debugFrame % 5 === 0) {
+          window.allUnits.forEach(unit => {
+            console.log(`[TICK ${window._debugFrame}] ${unit.id} world:(${Math.round(unit.worldPos.x)},${Math.round(unit.worldPos.y)}) grid:(${unit.gridPos.x},${unit.gridPos.y})`);
+          });
+        }
+      }
     }
 
     requestAnimationFrame(gameLoop);

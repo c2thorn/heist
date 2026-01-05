@@ -237,6 +237,15 @@ export class ArrangementEngine {
     }
 
     /**
+     * Check if an arrangement has been purchased
+     * @param {string} arrangementId - ID of arrangement to check
+     * @returns {boolean} True if purchased
+     */
+    hasPurchased(arrangementId) {
+        return this.purchased.some(a => a.id === arrangementId);
+    }
+
+    /**
      * Set available cash
      * @param {number} cash - Cash available
      */
@@ -277,7 +286,7 @@ export class ArrangementEngine {
             cost: 200,
             uses: 2,
             description: 'Ring a phone to distract nearby guards',
-            payload: { effect: 'PHONE_DISTRACTION', x: 17, y: 8 }
+            payload: { effect: 'PHONE_DISTRACTION', x: 19, y: 9 }  // Moved away from guard
         });
 
         this.defineArrangement({
@@ -306,8 +315,8 @@ export class ArrangementEngine {
             type: ArrangementType.STATIC_MODIFIER,
             cost: 400,
             reqSector: 'vault',
-            description: 'Skip vault door lockpicking',
-            payload: { effect: 'UNLOCK_DOOR', x: 23, y: 22 }
+            description: 'Quick unlock vault door (1.5s vs 10s)',
+            payload: { effect: 'VAULT_BYPASS', x: 24, y: 21 }  // Icon position (not door position)
         });
     }
 }

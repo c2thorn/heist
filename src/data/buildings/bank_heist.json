@@ -1,0 +1,353 @@
+{
+    "id": "bank_heist_01",
+    "name": "Metro National Bank",
+    "width": 32,
+    "height": 32,
+    "zones": [
+        {
+            "id": "exterior",
+            "name": "Exterior",
+            "color": "#0d1117"
+        },
+        {
+            "id": "lobby",
+            "name": "Lobby",
+            "color": "#2c3e50"
+        },
+        {
+            "id": "hallway",
+            "name": "Hallway",
+            "color": "#34495e"
+        },
+        {
+            "id": "office",
+            "name": "Office",
+            "color": "#3d5a80"
+        },
+        {
+            "id": "vault",
+            "name": "Vault",
+            "color": "#1a365d"
+        },
+        {
+            "id": "security",
+            "name": "Security Room",
+            "color": "#7c2d12"
+        },
+        {
+            "id": "server",
+            "name": "Server Room",
+            "color": "#064e3b"
+        }
+    ],
+    "building": {
+        "shell": {
+            "x1": 2,
+            "y1": 2,
+            "x2": 29,
+            "y2": 29
+        }
+    },
+    "rooms": [
+        {
+            "zone": "lobby",
+            "bounds": {
+                "x1": 10,
+                "y1": 22,
+                "x2": 21,
+                "y2": 28
+            },
+            "interior": {
+                "x1": 11,
+                "y1": 23,
+                "x2": 20,
+                "y2": 27
+            },
+            "doors": [
+                {
+                    "x": 15,
+                    "y": 28
+                },
+                {
+                    "x": 16,
+                    "y": 28
+                },
+                {
+                    "x": 15,
+                    "y": 22
+                },
+                {
+                    "x": 16,
+                    "y": 22
+                }
+            ]
+        },
+        {
+            "zone": "hallway",
+            "bounds": {
+                "x1": 5,
+                "y1": 13,
+                "x2": 26,
+                "y2": 16
+            },
+            "interior": {
+                "x1": 5,
+                "y1": 14,
+                "x2": 26,
+                "y2": 15
+            },
+            "customWalls": [
+                {
+                    "type": "horizontal",
+                    "y": 13,
+                    "x1": 5,
+                    "x2": 26
+                },
+                {
+                    "type": "horizontal",
+                    "y": 16,
+                    "x1": 5,
+                    "x2": 26
+                }
+            ],
+            "connections": [
+                {
+                    "x1": 14,
+                    "y1": 17,
+                    "x2": 17,
+                    "y2": 21,
+                    "floors": true
+                },
+                {
+                    "x": 15,
+                    "y": 16,
+                    "type": "FLOOR"
+                },
+                {
+                    "x": 16,
+                    "y": 16,
+                    "type": "FLOOR"
+                }
+            ]
+        },
+        {
+            "zone": "office",
+            "bounds": {
+                "x1": 4,
+                "y1": 4,
+                "x2": 12,
+                "y2": 11
+            },
+            "interior": {
+                "x1": 5,
+                "y1": 5,
+                "x2": 11,
+                "y2": 10
+            },
+            "doors": [
+                {
+                    "x": 8,
+                    "y": 11
+                },
+                {
+                    "x": 8,
+                    "y": 13
+                }
+            ],
+            "connections": [
+                {
+                    "x": 8,
+                    "y": 12,
+                    "type": "FLOOR"
+                }
+            ]
+        },
+        {
+            "zone": "security",
+            "bounds": {
+                "x1": 14,
+                "y1": 4,
+                "x2": 21,
+                "y2": 11
+            },
+            "interior": {
+                "x1": 15,
+                "y1": 5,
+                "x2": 20,
+                "y2": 10
+            },
+            "doors": [
+                {
+                    "x": 17,
+                    "y": 11
+                },
+                {
+                    "x": 18,
+                    "y": 11
+                },
+                {
+                    "x": 17,
+                    "y": 13
+                },
+                {
+                    "x": 18,
+                    "y": 13
+                }
+            ],
+            "connections": [
+                {
+                    "x": 17,
+                    "y": 12,
+                    "type": "FLOOR"
+                },
+                {
+                    "x": 18,
+                    "y": 12,
+                    "type": "FLOOR"
+                }
+            ]
+        },
+        {
+            "zone": "server",
+            "bounds": {
+                "x1": 23,
+                "y1": 4,
+                "x2": 28,
+                "y2": 11
+            },
+            "interior": {
+                "x1": 24,
+                "y1": 5,
+                "x2": 27,
+                "y2": 10
+            },
+            "doors": [
+                {
+                    "x": 25,
+                    "y": 11
+                },
+                {
+                    "x": 25,
+                    "y": 13
+                }
+            ],
+            "connections": [
+                {
+                    "x": 25,
+                    "y": 12,
+                    "type": "FLOOR"
+                }
+            ]
+        },
+        {
+            "zone": "vault",
+            "bounds": {
+                "x1": 23,
+                "y1": 18,
+                "x2": 28,
+                "y2": 27
+            },
+            "interior": {
+                "x1": 24,
+                "y1": 19,
+                "x2": 27,
+                "y2": 26
+            },
+            "doors": [
+                {
+                    "x": 23,
+                    "y": 22,
+                    "locked": true
+                }
+            ],
+            "connections": [
+                {
+                    "x1": 22,
+                    "y1": 14,
+                    "x2": 22,
+                    "y2": 22,
+                    "type": "FLOOR"
+                },
+                {
+                    "x": 26,
+                    "y": 14,
+                    "type": "FLOOR"
+                },
+                {
+                    "x": 26,
+                    "y": 15,
+                    "type": "FLOOR"
+                }
+            ]
+        }
+    ],
+    "openDoors": [
+        {
+            "x": 15,
+            "y": 22
+        },
+        {
+            "x": 16,
+            "y": 22
+        }
+    ],
+    "guards": [
+        {
+            "id": "guard_1",
+            "x": 16,
+            "y": 7,
+            "color": "#ff4444",
+            "radius": 10,
+            "visionCone": {
+                "fov": 90,
+                "range": 6,
+                "facing": 180
+            }
+        }
+    ],
+    "interactables": [
+        {
+            "type": "SAFE",
+            "id": "main_safe",
+            "x": 25,
+            "y": 22,
+            "label": "Vault Safe",
+            "duration": 6,
+            "dc": 10,
+            "lootValue": 5000
+        },
+        {
+            "type": "COMPUTER",
+            "id": "lobby_terminal",
+            "x": 12,
+            "y": 24,
+            "label": "Lobby Terminal",
+            "duration": 3,
+            "dc": 6
+        },
+        {
+            "type": "PANEL",
+            "id": "alarm_panel",
+            "x": 19,
+            "y": 6,
+            "label": "Alarm System",
+            "duration": 4,
+            "dc": 8
+        }
+    ],
+    "crewSpawns": [
+        {
+            "x": 15,
+            "y": 26,
+            "default": true
+        },
+        {
+            "x": 16,
+            "y": 26
+        }
+    ],
+    "initiallyRevealed": [
+        "lobby",
+        "exterior"
+    ]
+}

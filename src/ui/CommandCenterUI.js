@@ -206,7 +206,8 @@ class CommandCenterUI {
 
                 // Hover Tooltip logic
                 slot.addEventListener('mouseenter', () => {
-                    const item = char.equipment[idx];
+                    const slotIdx = parseInt(slot.dataset.slot);
+                    const item = char.equipment[slotIdx];
                     if (item) {
                         this.updateEquipStatus(`${item.name.toUpperCase()}: ${item.description}`);
                     } else if (this.selectedItemInstanceId) {

@@ -126,7 +126,7 @@ export class EntityLayer {
     /**
      * Render all visible entities in layer order
      */
-    render(ctx, camera, visibilityCheck = null) {
+    render(ctx, camera, tileSize = 24, visibilityCheck = null) {
         const layerOrder = ['ground', 'entity', 'overlay'];
 
         for (const layerName of layerOrder) {
@@ -138,7 +138,7 @@ export class EntityLayer {
                 // Optional visibility check (fog of war)
                 if (visibilityCheck && !visibilityCheck(entity)) continue;
 
-                entity.render(ctx, camera);
+                entity.render(ctx, camera, tileSize);
             }
         }
     }

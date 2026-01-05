@@ -17,11 +17,22 @@ export class TaskProcessor {
     constructor(unit) {
         this.unit = unit;
         this.currentObjective = null;
-        this.state = 'IDLE'; // IDLE, MOVING, INTERACTING, HOLDING, ESCAPING, WAITING_FOR_PATH, WAITING_FOR_TRIGGER
+        this.state = 'IDLE'; // IDLE, MOVING, INTERACTING, HOLDING, ESCAPING, WAITING_FOR_PATH, WAITING_FOR_TRIGGER, UNLOCKING
         this.path = [];
         this.pathIndex = 0;
         this.retryTimer = 0;
         this.holdStartTime = 0; // Track when HOLD started
+        this.unlockTimer = 0;   // Timer for unlocking doors
+        this.unlockDuration = 0; // Total time to unlock (for progress bar)
+        this.unlockingTile = null; // The door tile being unlocked
+    }
+
+    /**
+     * Get unlock progress as a value from 0 to 1
+     */
+    getUnlockProgress() {
+        if (this.state !== 'UNLOCKING' || this.unlockDuration <= 0) return 0;
+        return Math.min(1, this.unlockTimer / this.unlockDuration);
     }
 
     handleStimulus(stimulus) {
@@ -74,6 +85,9 @@ export class TaskProcessor {
                 break;
             case 'ESCAPING':
                 this.processMovement(dt);
+                break;
+            case 'UNLOCKING':
+                this.processUnlocking(dt);
                 break;
         }
     }
@@ -346,14 +360,80 @@ export class TaskProcessor {
         }
 
         const nextNode = this.path[this.pathIndex];
-        // Debug: Log unit position before movement
-        if (this.pathIndex === 0) {
+        // Debug: Log unit position before movement (toggle with window.DEBUG_MOVEMENT = true)
+        if (window.DEBUG_MOVEMENT && this.pathIndex === 0) {
             console.log(`[${this.unit.id}] Movement Start - UnitPos: (${this.unit.gridPos.x},${this.unit.gridPos.y}), Target: (${nextNode.x},${nextNode.y})`);
+            console.log(`[${this.unit.id}] WorldPos: (${Math.round(this.unit.worldPos.x)},${Math.round(this.unit.worldPos.y)})`);
         }
+
+        // Check if next tile is a locked door
+        const nextTile = window.tileMap?.getTile(nextNode.x, nextNode.y);
+        if (nextTile && nextTile.type === 'DOOR' && nextTile.isLocked) {
+            // Calculate unlock duration based on vault codes
+            const hasVaultCodes = window.arrangementEngine?.hasPurchased('vault_codes');
+            const isVaultDoor = nextTile.x === 23 && nextTile.y === 22;
+            const QUICK_UNLOCK = 1.5;
+            const SLOW_UNLOCK = 10.0;
+            this.unlockDuration = (isVaultDoor && hasVaultCodes) ? QUICK_UNLOCK : SLOW_UNLOCK;
+
+            // Pause to unlock the door
+            console.log(`[${this.unit.id}] Encountered locked door at (${nextNode.x},${nextNode.y}) - unlocking (${this.unlockDuration}s)`);
+            this.unlockingTile = nextTile;
+            this.unlockTimer = 0;
+            this.state = 'UNLOCKING';
+            return;
+        }
+
         const arrived = this.unit.moveTowards(nextNode.x, nextNode.y, dt);
         if (arrived) {
-            console.log(`[${this.unit.id}] Arrived at step ${this.pathIndex}: (${nextNode.x},${nextNode.y})`);
+            if (window.DEBUG_MOVEMENT) {
+                console.log(`[${this.unit.id}] Arrived at step ${this.pathIndex}: (${nextNode.x},${nextNode.y}), WorldPos: (${Math.round(this.unit.worldPos.x)},${Math.round(this.unit.worldPos.y)})`);
+            }
+
+            // Auto-open unlocked doors when stepping on them
+            if (nextTile && nextTile.type === 'DOOR' && nextTile.doorState === 'CLOSED') {
+                nextTile.openDoor();
+            }
+
             this.pathIndex++;
+        }
+    }
+
+    /**
+     * Process door unlocking - crew member picks the lock
+     * Time depends on whether vault codes were purchased
+     */
+    processUnlocking(dt) {
+        // Check if this is a vault door and codes were purchased
+        const hasVaultCodes = window.arrangementEngine?.hasPurchased('vault_codes');
+        const isVaultDoor = this.unlockingTile?.x === 23 && this.unlockingTile?.y === 22;
+
+        // Tiered unlock times: vault with codes = 1.5s, otherwise = 10s
+        const QUICK_UNLOCK = 1.5;   // With vault codes
+        const SLOW_UNLOCK = 10.0;   // Lockpicking
+        const unlockDuration = (isVaultDoor && hasVaultCodes) ? QUICK_UNLOCK : SLOW_UNLOCK;
+
+        this.unlockTimer += dt;
+
+        if (this.unlockTimer >= unlockDuration) {
+            // Door unlocked!
+            if (this.unlockingTile) {
+                this.unlockingTile.unlockDoor();
+                this.unlockingTile.openDoor();
+                const method = (isVaultDoor && hasVaultCodes) ? 'using codes' : 'picked lock';
+                console.log(`[${this.unit.id}] Door unlocked (${method})!`);
+
+                // Refresh pathfinder since walkability changed
+                if (window.pathfinder) {
+                    window.pathfinder.refresh();
+                }
+            }
+
+            this.unlockingTile = null;
+            this.unlockTimer = 0;
+
+            // Resume movement
+            this.state = this.currentObjective?.type === 'ESCAPE' ? 'ESCAPING' : 'MOVING';
         }
     }
 

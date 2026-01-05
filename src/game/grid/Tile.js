@@ -54,11 +54,12 @@ export class Tile {
                 this.isTransparent = false;
                 break;
             case GridConfig.TILE_TYPE.DOOR:
-                // Doors start closed
-                this.isWalkable = false;
+                // Doors: always walkable for pathfinding. Locked doors will pause unit for unlock.
+                this.doorState = 'CLOSED';  // CLOSED, OPEN
+                this.isLocked = false;      // If true, unit will pause to unlock when reached
+                this.isWalkable = true;     // All doors are pathable
                 this.isCover = true;
                 this.isTransparent = false;
-                this.doorState = 'CLOSED';  // CLOSED, OPEN, LOCKED
                 break;
             case GridConfig.TILE_TYPE.WINDOW:
                 this.isWalkable = false;
@@ -101,14 +102,33 @@ export class Tile {
     }
 
     /**
-     * Close a door tile
+     * Close a door tile (still walkable if unlocked)
      */
     closeDoor() {
         if (this.type !== GridConfig.TILE_TYPE.DOOR) return;
         this.doorState = 'CLOSED';
-        this.isWalkable = false;
+        this.isWalkable = !this.isLocked;  // Walkable only if unlocked
         this.isCover = true;
         this.isTransparent = false;
+    }
+
+    /**
+     * Lock a door (still walkable for pathfinding, but unit will pause to unlock)
+     */
+    lockDoor() {
+        if (this.type !== GridConfig.TILE_TYPE.DOOR) return;
+        this.isLocked = true;
+        // Keep walkable for pathfinding - TaskProcessor handles the unlock pause
+        this.isWalkable = true;
+    }
+
+    /**
+     * Unlock a door (makes it walkable)
+     */
+    unlockDoor() {
+        if (this.type !== GridConfig.TILE_TYPE.DOOR) return;
+        this.isLocked = false;
+        this.isWalkable = true;
     }
 
     /**

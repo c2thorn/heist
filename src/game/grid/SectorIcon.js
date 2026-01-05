@@ -11,7 +11,7 @@ export class SectorIcon extends MapEntity {
             id: `sector_icon_${config.sectorId}`,
             gridX: config.centerX,
             gridY: config.centerY,
-            icon: '👁️',
+            icon: '🔍',
             color: '#00ccff',
             layer: 'overlay',
             label: config.label || config.sectorId,
@@ -32,42 +32,35 @@ export class SectorIcon extends MapEntity {
 
     render(ctx, camera) {
         const screenPos = this.getScreenPos(camera);
-        const size = RenderEffects.hoverScale(24, this.isHovered);
+        const baseSize = 36; // 1.5x larger (was 24)
+        const size = RenderEffects.hoverScale(baseSize, this.isHovered, 1.2);
 
-        // Glow effect on hover
-        if (this.isHovered) {
-            RenderEffects.applyGlow(ctx, this.color, 15);
-        }
+        // Blue glow shadow directly on the eye (no circle)
+        ctx.save();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = this.isHovered ? 20 : 12;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
 
-        // Background circle
-        ctx.beginPath();
-        ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
-        ctx.fillStyle = this.isHovered ? 'rgba(0, 204, 255, 0.3)' : 'rgba(0, 136, 255, 0.2)';
-        ctx.fill();
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = this.isHovered ? 3 : 2;
-        ctx.stroke();
-
-        if (this.isHovered) {
-            ctx.restore();
-        }
-
-        // Eye icon
+        // Eye icon - prominent, no shading
         ctx.font = `${size}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff'; // Bright white eye
         ctx.fillText(this.icon, screenPos.x, screenPos.y);
+
+        ctx.restore();
 
         // Label + cost on hover
         if (this.isHovered) {
             ctx.fillStyle = this.color;
             ctx.font = 'bold 12px monospace';
-            ctx.fillText(this.label.toUpperCase(), screenPos.x, screenPos.y + size + 16);
+            ctx.fillText(this.label.toUpperCase(), screenPos.x, screenPos.y + size / 2 + 20);
 
             if (this.intelCost > 0) {
                 ctx.fillStyle = '#ffcc00';
                 ctx.font = '10px sans-serif';
-                ctx.fillText(`🔍 ${this.intelCost} Intel`, screenPos.x, screenPos.y + size + 30);
+                ctx.fillText(`🔍 ${this.intelCost} Intel`, screenPos.x, screenPos.y + size / 2 + 34);
             }
         }
     }

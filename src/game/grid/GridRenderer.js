@@ -1,6 +1,9 @@
 import { GridConfig } from './GridConfig.js';
 import { EntityLayer } from './EntityLayer.js';
 import { SectorIcon } from './SectorIcon.js';
+import { AssetIcon } from './AssetIcon.js';
+import { UnitEntity } from './UnitEntity.js';
+import { InteractableEntity } from './InteractableEntity.js';
 
 /**
  * GridRenderer - Canvas-based tile grid renderer with camera/viewport
@@ -83,6 +86,35 @@ export class GridRenderer {
             const { assetId, hovering } = e.detail;
             this.hoveredAssetId = hovering ? assetId : null;
         });
+
+        // Fog of war noise animation
+        this.fogTime = 0;
+        this._initFogNoise();
+    }
+
+    /**
+     * Initialize fog noise pattern (creates a small noise texture)
+     */
+    _initFogNoise() {
+        // Create a small noise canvas for fog texture
+        this.fogNoiseCanvas = document.createElement('canvas');
+        this.fogNoiseCanvas.width = 64;
+        this.fogNoiseCanvas.height = 64;
+        const noiseCtx = this.fogNoiseCanvas.getContext('2d');
+
+        // Generate noise pattern
+        const imgData = noiseCtx.createImageData(64, 64);
+        for (let i = 0; i < imgData.data.length; i += 4) {
+            const noise = Math.random() * 60; // Subtle variation
+            imgData.data[i] = noise;       // R
+            imgData.data[i + 1] = noise;   // G
+            imgData.data[i + 2] = noise;   // B
+            imgData.data[i + 3] = 255;     // A
+        }
+        noiseCtx.putImageData(imgData, 0, 0);
+
+        // Create pattern
+        this.fogPattern = this.ctx.createPattern(this.fogNoiseCanvas, 'repeat');
     }
 
     /**
@@ -91,6 +123,10 @@ export class GridRenderer {
      */
     addUnit(unit) {
         this.units.push(unit);
+
+        // Create UnitEntity wrapper for EntityLayer
+        const unitEntity = new UnitEntity(unit);
+        this.entityLayer.add(unitEntity);
     }
 
     /**
@@ -99,6 +135,7 @@ export class GridRenderer {
      */
     removeUnit(unitId) {
         this.units = this.units.filter(u => u.id !== unitId);
+        this.entityLayer.remove(`unit_entity_${unitId}`);
     }
 
     /**
@@ -116,6 +153,10 @@ export class GridRenderer {
      */
     addInteractable(interactable) {
         this.interactables.push(interactable);
+
+        // Create InteractableEntity wrapper for unified hover/click in EntityLayer
+        const entity = new InteractableEntity(interactable);
+        this.entityLayer.add(entity);
     }
 
     /**
@@ -124,6 +165,7 @@ export class GridRenderer {
      */
     removeInteractable(id) {
         this.interactables = this.interactables.filter(i => i.id !== id);
+        this.entityLayer.remove(`interactable_entity_${id}`);
     }
 
     /**
@@ -382,12 +424,27 @@ export class GridRenderer {
                     }
                 }
 
-                // Visibility overlay
+                // Visibility overlay with animated fog
                 if (tile.visibility === GridConfig.VISIBILITY.HIDDEN) {
-                    ctx.fillStyle = this.colors.hiddenOverlay;
+                    // Dark base layer
+                    ctx.fillStyle = 'rgba(5, 5, 15, 0.92)';
                     ctx.fillRect(px, py, ts, ts);
+
+                    // Animated noise overlay
+                    if (this.fogPattern) {
+                        ctx.save();
+                        ctx.globalAlpha = 0.15;
+                        ctx.globalCompositeOperation = 'screen';
+                        // Animate by shifting pattern
+                        const shift = Math.sin(this.fogTime * 0.5 + (x + y) * 0.3) * 2;
+                        ctx.translate(shift, shift * 0.7);
+                        ctx.fillStyle = this.fogPattern;
+                        ctx.fillRect(px - shift, py - shift * 0.7, ts + 4, ts + 4);
+                        ctx.restore();
+                    }
                 } else if (tile.visibility === GridConfig.VISIBILITY.REVEALED) {
-                    ctx.fillStyle = this.colors.revealedOverlay;
+                    // Revealed: subtle darken with slight noise
+                    ctx.fillStyle = 'rgba(10, 10, 25, 0.45)';
                     ctx.fillRect(px, py, ts, ts);
                 }
 
@@ -402,13 +459,67 @@ export class GridRenderer {
         // Render vision cones (between tiles and units)
         this._renderVisionCones();
 
-        // Render interactables
-        this._renderInteractables();
 
-        // Render units on top of tiles
-        this._renderUnits();
+        // Interactables now rendered via EntityLayer (InteractableEntity)
+        // this._renderInteractables();
+
+        // Units now rendered via EntityLayer (UnitEntity)
+        // this._renderUnits();
+
+        // Render tile info overlay (bottom-left corner)
+        this._renderTileInfoOverlay();
 
         // EntityLayer overlay now rendered in startRenderLoop (after planning overlay)
+    }
+
+    /**
+     * Render tile info overlay in bottom-left corner
+     */
+    _renderTileInfoOverlay() {
+        if (!this.hoveredTile) return;
+
+        const ctx = this.ctx;
+        const tile = this.hoveredTile;
+        const padding = 10;
+        const lineHeight = 16;
+
+        // Collect info lines
+        const lines = [];
+        lines.push(`Pos: (${tile.x}, ${tile.y})`);
+        lines.push(`Type: ${tile.type}`);
+
+        if (tile.zoneId) {
+            const zone = this.tileMap.getZone(tile.zoneId);
+            lines.push(`Zone: ${zone ? zone.name : tile.zoneId}`);
+        }
+
+        lines.push(`Visibility: ${tile.visibility}`);
+
+        if (tile.terrain && tile.terrain !== 'DEFAULT') {
+            lines.push(`Terrain: ${tile.terrain}`);
+        }
+
+        // Calculate box dimensions
+        const boxWidth = 140;
+        const boxHeight = lines.length * lineHeight + padding * 2;
+        const boxX = padding;
+        const boxY = this.camera.height - boxHeight - padding;
+
+        // Draw background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Draw text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        lines.forEach((line, i) => {
+            ctx.fillText(line, boxX + padding, boxY + padding + i * lineHeight);
+        });
     }
 
     /**
@@ -517,6 +628,34 @@ export class GridRenderer {
                     ctx.stroke();
                     ctx.lineWidth = 1;
                 }
+            }
+
+            // Draw unlock progress bar for UNLOCKING state
+            if (unit.taskProcessor && unit.taskProcessor.state === 'UNLOCKING') {
+                const progress = unit.taskProcessor.getUnlockProgress();
+                const barWidth = ts * 0.8;
+                const barHeight = 6;
+                const barX = screenPos.x - barWidth / 2;
+                const barY = screenPos.y - baseRadius - 12;
+
+                // Background
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+
+                // Progress fill (orange for unlocking)
+                ctx.fillStyle = '#ff9900';
+                ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+
+                // Border
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+                // Label
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('🔓', screenPos.x, barY - 4);
             }
         }
     }
@@ -683,8 +822,8 @@ export class GridRenderer {
             const originGrid = this.tileMap.worldToGrid(cone.x, cone.y);
             const tile = this.tileMap.getTile(originGrid.x, originGrid.y);
 
-            // If origin tile is HIDDEN, don't show cone.
-            if (tile && tile.visibility === GridConfig.VISIBILITY.HIDDEN) {
+            // Only show cone if origin tile is fully VISIBLE (not hidden or just revealed)
+            if (!tile || tile.visibility !== GridConfig.VISIBILITY.VISIBLE) {
                 continue;
             }
 
@@ -729,6 +868,9 @@ export class GridRenderer {
             const deltaTime = (currentTime - this.lastFrameTime) / 1000;
             this.lastFrameTime = currentTime;
 
+            // Update fog animation time
+            this.fogTime += deltaTime;
+
             this._updateCamera(deltaTime);
             // Unit updates removed - handled by main game loop in renderer.js
             this.render();
@@ -738,12 +880,36 @@ export class GridRenderer {
                 this._renderPlanningOverlay();
             }
 
+            // Sync entity wrappers with their underlying objects
+            this._syncEntityLayer();
+
             // Render EntityLayer overlay LAST (on top of everything)
-            this.entityLayer.render(this.ctx, this.camera);
+            this.entityLayer.render(this.ctx, this.camera, this.tileSize);
 
             requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
+    }
+
+    /**
+     * Sync EntityLayer wrappers with their underlying objects
+     */
+    _syncEntityLayer() {
+        // Sync UnitEntity wrappers (with tileMap for fog of war check)
+        for (const unit of this.units) {
+            const entity = this.entityLayer.get(`unit_entity_${unit.id}`);
+            if (entity && entity.sync) {
+                entity.sync(this.tileMap);
+            }
+        }
+
+        // Sync InteractableEntity wrappers
+        for (const interactable of this.interactables) {
+            const entity = this.entityLayer.get(`interactable_entity_${interactable.id}`);
+            if (entity && entity.sync) {
+                entity.sync(this.tileMap);
+            }
+        }
     }
 
     /**
@@ -803,66 +969,46 @@ export class GridRenderer {
             }
         }
 
-        // 2. Render Arrangements (Asset Icons)
+        // 2. Sync Asset Icons to EntityLayer
         const assets = window.arrangementEngine.available;
         for (const asset of assets) {
             // Only show if sector is revealed (or no sector req)
             if (asset.reqSector && !window.sectorManager.isSectorRevealed(asset.reqSector)) {
+                // Hide if sector not revealed
+                const iconId = `asset_icon_${asset.id}`;
+                const existingIcon = this.entityLayer.get(iconId);
+                if (existingIcon) existingIcon.isVisible = false;
                 continue;
             }
 
             // Only show if it has a map location
             if (asset.payload && asset.payload.x !== undefined && asset.payload.y !== undefined) {
-                const worldPos = this.tileMap.gridToWorld(asset.payload.x, asset.payload.y);
-                const screenPos = this.worldToScreen(worldPos.x, worldPos.y);
+                const iconId = `asset_icon_${asset.id}`;
+                let icon = this.entityLayer.get(iconId);
 
-                // Skip if offscreen
-                if (screenPos.x < -ts || screenPos.x > this.camera.width + ts ||
-                    screenPos.y < -ts || screenPos.y > this.camera.height + ts) {
-                    continue;
+                if (!icon) {
+                    // Determine icon type
+                    let iconChar = '📦';
+                    if (asset.id.includes('phone')) iconChar = '📞';
+                    if (asset.id.includes('power')) iconChar = '⚡';
+                    if (asset.id.includes('vault')) iconChar = '🔢';
+                    if (asset.id.includes('bribe')) iconChar = '🤝';
+
+                    icon = new AssetIcon({
+                        assetId: asset.id,
+                        gridX: asset.payload.x,
+                        gridY: asset.payload.y,
+                        icon: iconChar,
+                        label: asset.name || asset.id,
+                        cost: asset.cost
+                    });
+                    this.entityLayer.add(icon);
                 }
 
-                // Determine icon and color
-                let icon = '📦';
-                let color = '#00ff88'; // Available green
-
-                if (asset.purchased) {
-                    color = '#ffffff'; // Owned white/bright
-                    icon = '✅';
-                } else if (window.arrangementEngine.getCash() < asset.cost) {
-                    color = '#ff4444'; // Can't afford red
-                }
-
-                // Override icon based on type (simple mapping for now)
-                if (asset.id.includes('phone')) icon = '📞';
-                if (asset.id.includes('power')) icon = '⚡';
-                if (asset.id.includes('vault')) icon = '🔢';
-                if (asset.id.includes('bribe')) icon = '🤝';
-
-                // Hover Highlight from Tray
-                if (this.hoveredAssetId === asset.id) {
-                    // Draw connecting line indicator or just big glow
-                    ctx.shadowColor = '#00ff88';
-                    ctx.shadowBlur = 20;
-
-                    // Draw target reticle
-                    ctx.strokeStyle = '#00ff88';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(screenPos.x, screenPos.y, 20, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-
-                this._renderIconAt(screenPos.x, screenPos.y, icon, color, 20);
-                ctx.shadowBlur = 0; // Reset
-
-                // Draw price if not purchased
-                if (!asset.purchased) {
-                    ctx.fillStyle = color;
-                    ctx.font = '10px monospace';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(`$${asset.cost}`, screenPos.x, screenPos.y + 16);
-                }
+                // Update state
+                const canAfford = window.arrangementEngine.getCash() >= asset.cost;
+                icon.updateFromAsset(asset, canAfford);
+                icon.isVisible = true;
             }
         }
     }
