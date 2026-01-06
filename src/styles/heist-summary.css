@@ -1,0 +1,214 @@
+/* Heist Summary / Debrief Screen Styles */
+
+.heist-summary-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.heist-summary-panel {
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    border: 2px solid #3d5a80;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 40px rgba(61, 90, 128, 0.2);
+    animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header */
+.summary-header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.summary-header .outcome-tier {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    text-shadow: 0 0 20px currentColor;
+    letter-spacing: 1px;
+}
+
+.summary-header .outcome-subtitle {
+    font-size: 14px;
+    color: #a0aec0;
+    margin: 0;
+    font-style: italic;
+}
+
+/* Body sections */
+.summary-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.summary-section {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.summary-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Loot Section */
+.loot-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 12px 0;
+}
+
+.loot-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 14px;
+}
+
+.loot-list li:last-child {
+    border-bottom: none;
+}
+
+.loot-list .score-loot {
+    color: #ffd700;
+    font-weight: 600;
+}
+
+.loot-list .side-loot {
+    color: #e2e8f0;
+}
+
+.loot-list .no-loot {
+    color: #64748b;
+    font-style: italic;
+    justify-content: center;
+}
+
+.loot-value {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+}
+
+.loot-total {
+    text-align: right;
+    font-size: 16px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.loot-total.positive {
+    color: #22c55e;
+}
+
+.loot-total.zero {
+    color: #64748b;
+}
+
+/* Crew Section */
+.crew-escaped,
+.crew-captured {
+    font-size: 14px;
+    margin: 4px 0;
+}
+
+.crew-escaped {
+    color: #22c55e;
+}
+
+.crew-captured {
+    color: #94a3b8;
+}
+
+.crew-captured.danger {
+    color: #ef4444;
+}
+
+.captured-names {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+/* Heat Section */
+.heat-change {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.heat-decrease {
+    color: #22c55e;
+}
+
+.heat-increase {
+    color: #ef4444;
+}
+
+.heat-neutral {
+    color: #64748b;
+}
+
+/* Footer */
+.summary-footer {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.summary-continue-btn {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    border: none;
+    padding: 14px 48px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+}
+
+.summary-continue-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+}
+
+.summary-continue-btn:active {
+    transform: translateY(0);
+}

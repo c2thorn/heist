@@ -9,10 +9,11 @@ export class InteractableEntity extends MapEntity {
     constructor(interactable) {
         // Determine icon based on type (matching legacy)
         let icon = '?';
+        const isScore = interactable.isScore || false;
 
         switch (interactable.type) {
             case 'SAFE':
-                icon = '$';
+                icon = isScore ? '⭐' : '$';
                 break;
             case 'COMPUTER':
                 icon = '💻';
@@ -43,14 +44,18 @@ export class InteractableEntity extends MapEntity {
         });
 
         this.interactable = interactable;
+        this.isScore = isScore;  // Track if this is THE Score
     }
 
     /**
      * Sync visibility from interactable state
      */
     sync(tileMap) {
-        // Hide if in fog of war
-        if (tileMap) {
+        // Score is ALWAYS visible, even through fog
+        if (this.isScore) {
+            this.isVisible = true;
+        } else if (tileMap) {
+            // Hide if in fog of war for non-Score items
             const tile = tileMap.getTile(this.gridX, this.gridY);
             this.isVisible = tile && tile.visibility !== 'HIDDEN';
         }

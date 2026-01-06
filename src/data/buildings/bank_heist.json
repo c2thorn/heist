@@ -257,7 +257,10 @@
                 {
                     "x": 23,
                     "y": 22,
-                    "locked": true
+                    "locked": true,
+                    "unlockDuration": 10.0,
+                    "quickUnlockDuration": 1.5,
+                    "quickUnlockArrangement": "vault_codes"
                 }
             ],
             "connections": [
@@ -349,5 +352,48 @@
     "initiallyRevealed": [
         "lobby",
         "exterior"
-    ]
+    ],
+    "score": {
+        "id": "vault_haul",
+        "name": "Vault Cash Reserves",
+        "value": 8000,
+        "interactableId": "main_safe"
+    },
+    "sideScores": [
+        {
+            "id": "teller_cash",
+            "name": "Teller Drawer",
+            "value": 500,
+            "x": 13,
+            "y": 25,
+            "sector": "lobby",
+            "duration": 3
+        },
+        {
+            "id": "manager_safe",
+            "name": "Manager's Safe",
+            "value": 1200,
+            "x": 7,
+            "y": 7,
+            "sector": "office",
+            "duration": 5
+        }
+    ],
+    "extraction": {
+        "points": [
+            {
+                "id": "main_entrance",
+                "name": "Main Entrance",
+                "x": 15,
+                "y": 28,
+                "isDefault": true
+            },
+            {
+                "id": "back_alley",
+                "name": "Back Alley",
+                "x": 3,
+                "y": 14
+            }
+        ]
+    }
 }

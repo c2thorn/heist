@@ -21,5 +21,7 @@ export { ArrangementEngine, ArrangementType, arrangementEngine } from './Arrange
 export { Interactable, InteractableType, InteractableState, Door, Computer, Safe, SecurityPanel } from './Interactable.js';
 export { SkillCheck, SkillCheckResult } from './SkillCheck.js';
 
-
-
+// Win/Lose System
+export { LootBag } from './LootBag.js';
+export { ExtractionPoint } from './ExtractionPoint.js';
+export { HeistOutcomeEngine, outcomeEngine } from './HeistOutcomeEngine.js';

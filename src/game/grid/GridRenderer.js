@@ -179,6 +179,22 @@ export class GridRenderer {
     }
 
     /**
+     * Add a generic map entity to be rendered
+     * @param {MapEntity} entity - Any MapEntity subclass (ExtractionPoint, etc.)
+     */
+    addEntity(entity) {
+        this.entityLayer.add(entity);
+    }
+
+    /**
+     * Remove a generic entity by ID
+     * @param {string} entityId - ID of entity to remove
+     */
+    removeEntity(entityId) {
+        this.entityLayer.remove(entityId);
+    }
+
+    /**
      * Set canvas size to viewport dimensions
      */
     _resizeCanvas() {

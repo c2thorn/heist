@@ -6,7 +6,9 @@ import './styles/shop.css';
 import './styles/aar.css';
 import './styles/job-board.css';
 import './styles/setup-phase.css';
+import './styles/heist-summary.css';
 import { MapRenderer } from './ui/map/MapRenderer';
+import { heistSummaryUI } from './ui/HeistSummaryUI';
 import { commandCenterUI } from './ui/CommandCenterUI';
 import { shopManager } from './ui/ShopManager';
 import { setupPhaseUI } from './ui/SetupPhaseUI';
@@ -16,7 +18,7 @@ import { SimulationEngine } from './game/SimulationEngine';
 import { JobBoardUI } from './ui/JobBoardUI';
 import { UnitContextMenu } from './ui/UnitContextMenu';
 import './styles/context-menu.css';
-import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel } from './game/grid/index.js';
+import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel, outcomeEngine } from './game/grid/index.js';
 import bankHeistData from './data/buildings/bank_heist.json';
 import bankHeistArrangements from './data/arrangements/bank_heist_arrangements.json';
 
@@ -121,12 +123,27 @@ function initTileGrid() {
   GameManager.crewSpawns = buildingResult.crewSpawns;
   window.crewSpawns = GameManager.crewSpawns; // Mirror
 
+  // Add extraction points from building data
+  GameManager.extractionPoints = buildingResult.extractionPoints || [];
+  window.extractionPoints = GameManager.extractionPoints;
+  for (const exitPoint of GameManager.extractionPoints) {
+    gridRenderer.addEntity(exitPoint);
+  }
+
+  // Initialize Heist Outcome Engine
+  window.outcomeEngine = outcomeEngine;
+  GameManager.outcomeEngine = outcomeEngine;
+
   GameManager.gridRenderer = gridRenderer;
   window.gridRenderer = gridRenderer; // Mirror
 
   // Initialize Radio Controller with units and exit point
   radioController.registerUnits([]);
-  radioController.setExitTile({ x: 15, y: 28 });
+  // Use default extraction point if available
+  const defaultExit = buildingResult.extractionPoints?.find(p => p.isDefault)
+    || buildingResult.extractionPoints?.[0]
+    || { x: 15, y: 28 };
+  radioController.setExitTile({ x: defaultExit.gridX || defaultExit.x, y: defaultExit.gridY || defaultExit.y });
   window.radioController = radioController;
   window.threatClock = threatClock;
 
@@ -574,6 +591,16 @@ window.addEventListener('startHeist', () => {
   window.heistPhase = GameManager.heistPhase;
   threatClock.resume();
 
+  // Initialize Heist Outcome Engine with current heist data
+  if (window.outcomeEngine) {
+    const scoreData = GameManager.scoreData || bankHeistData.score;
+    const sideScoreData = GameManager.sideScoreData || bankHeistData.sideScores || [];
+    const extractionPoints = GameManager.extractionPoints || [];
+    const crewCount = window.allUnits?.filter(u => u.isFriendly).length || 0;
+
+    window.outcomeEngine.initialize(scoreData, sideScoreData, extractionPoints, crewCount);
+  }
+
   // Auto-switch back to Roster Tab
   switchDeckTab('roster');
   setupPhaseUI.hide();
@@ -820,6 +847,34 @@ window.addEventListener('heistFinished', (e) => {
 
 window.addEventListener('heatLaundered', () => updateGlobalHeat());
 window.addEventListener('heistEventLog', () => updateGlobalHeat()); // Live updates during heist
+window.addEventListener('heatChanged', () => updateGlobalHeat());   // Heat from zones, captures, alarms
+
+// Handle new heist summary flow (HeistOutcomeEngine → HeistSummaryUI)
+window.addEventListener('heistSummaryClosed', () => {
+  console.log('[Renderer] Heist summary closed, transitioning to next day...');
+
+  // Apply payout to player's cash
+  const outcome = window.outcomeEngine?.outcome;
+  if (outcome?.payout > 0) {
+    GameManager.addCash(outcome.payout);
+    console.log(`  Added $${outcome.payout} to cash`);
+  }
+
+  // Unlock navigation
+  views.map.btn.disabled = false;
+  views.shop.btn.disabled = false;
+
+  // Reset heist phase
+  GameManager.heistPhase = 'PLANNING';
+  window.heistPhase = 'PLANNING';
+
+  // Transition to next day
+  GameManager.startNextDay();
+  window.dispatchEvent(new CustomEvent('nextDayStarted'));
+
+  // Show job board
+  jobBoardUI.render();
+});
 
 function updateGlobalHeat() {
   const heat = Math.min(100, Math.max(0, GameManager.gameState.resources.heat));

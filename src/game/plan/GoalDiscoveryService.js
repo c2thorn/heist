@@ -120,12 +120,12 @@ export class GoalDiscoveryService {
     static getExitTargets() {
         const targets = [];
 
-        // Check for exitPoints on gridRenderer
-        if (window.gridRenderer && window.gridRenderer.exitPoints) {
-            window.gridRenderer.exitPoints.forEach(exit => {
+        // Check for extractionPoints (new system)
+        if (window.extractionPoints && window.extractionPoints.length > 0) {
+            window.extractionPoints.forEach(exit => {
                 targets.push({
                     id: exit.id,
-                    label: exit.label || 'Exit',
+                    label: exit.name || 'Exit',
                     icon: '🚪'
                 });
             });

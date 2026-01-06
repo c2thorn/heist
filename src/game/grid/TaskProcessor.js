@@ -1,6 +1,7 @@
 import GameManager from '../GameManager';
 import { GridConfig } from './GridConfig';
 import { Triggers } from '../plan/GoalDiscoveryService';
+import { LootBag } from './LootBag';
 
 /**
  * TaskProcessor - The "Brain" of the Crew Member
@@ -104,6 +105,10 @@ export class TaskProcessor {
     startObjective(obj) {
         console.log(`[${this.unit.id}] Starting Objective: ${obj.label} (${obj.type})`);
         obj.status = 'IN_PROGRESS';
+
+        // Clear previous path data to prevent false arrivals
+        this.path = [];
+        this.pathIndex = 0;
 
         switch (obj.type) {
             case 'ACTION':
@@ -295,10 +300,16 @@ export class TaskProcessor {
     }
 
     findExit(id) {
-        // First check gridRenderer.exitPoints if available
-        if (window.gridRenderer && window.gridRenderer.exitPoints) {
-            const exit = window.gridRenderer.exitPoints.find(e => e.id === id);
-            if (exit) return exit;
+        // First check extractionPoints (new system)
+        if (window.extractionPoints && window.extractionPoints.length > 0) {
+            // If specific ID provided, find it
+            if (id) {
+                const exit = window.extractionPoints.find(e => e.id === id);
+                if (exit) return { id: exit.id, x: exit.gridX, y: exit.gridY };
+            }
+            // Otherwise use default extraction point
+            const defaultExit = window.extractionPoints.find(e => e.isDefault) || window.extractionPoints[0];
+            if (defaultExit) return { id: defaultExit.id, x: defaultExit.gridX, y: defaultExit.gridY };
         }
 
         // Fallback: use radioController.exitTile
@@ -353,6 +364,11 @@ export class TaskProcessor {
     }
 
     processMovement(dt) {
+        // Wait for path to be set (async requestPath may still be running)
+        if (!this.path || this.path.length === 0) {
+            return; // Path not ready yet
+        }
+
         if (this.pathIndex >= this.path.length) {
             // Arrived at destination
             this.onArrival();
@@ -369,12 +385,18 @@ export class TaskProcessor {
         // Check if next tile is a locked door
         const nextTile = window.tileMap?.getTile(nextNode.x, nextNode.y);
         if (nextTile && nextTile.type === 'DOOR' && nextTile.isLocked) {
-            // Calculate unlock duration based on vault codes
-            const hasVaultCodes = window.arrangementEngine?.hasPurchased('vault_codes');
-            const isVaultDoor = nextTile.x === 23 && nextTile.y === 22;
-            const QUICK_UNLOCK = 1.5;
-            const SLOW_UNLOCK = 10.0;
-            this.unlockDuration = (isVaultDoor && hasVaultCodes) ? QUICK_UNLOCK : SLOW_UNLOCK;
+            // Calculate unlock duration from tile data (data-driven)
+            let unlockTime = nextTile.unlockDuration || 10.0;  // Default fallback
+
+            // Check if quick unlock arrangement was purchased
+            if (nextTile.quickUnlockArrangement && nextTile.quickUnlockDuration !== null) {
+                const hasArrangement = window.arrangementEngine?.hasPurchased(nextTile.quickUnlockArrangement);
+                if (hasArrangement) {
+                    unlockTime = nextTile.quickUnlockDuration;
+                }
+            }
+
+            this.unlockDuration = unlockTime;
 
             // Pause to unlock the door
             console.log(`[${this.unit.id}] Encountered locked door at (${nextNode.x},${nextNode.y}) - unlocking (${this.unlockDuration}s)`);
@@ -461,6 +483,12 @@ export class TaskProcessor {
             case 'ESCAPE':
                 console.log(`[${this.unit.id}] EXTRACTED!`);
                 this.unit.isExtracted = true;
+
+                // Notify outcome engine for loot tracking
+                if (window.outcomeEngine) {
+                    window.outcomeEngine.extractUnit(this.unit);
+                }
+
                 this.completeObjective();
                 break;
         }
@@ -493,8 +521,19 @@ export class TaskProcessor {
             if (result.intel && window.GameManager) {
                 window.GameManager.gameState.intel += result.intel;
             }
-            if (result.loot && window.GameManager) {
-                window.GameManager.gameState.cash += result.loot;
+
+            // Create LootBag for safe cracks instead of directly adding cash
+            if (result.loot && result.type === 'safe_crack') {
+                const lootBag = new LootBag({
+                    sourceId: result.interactableId || interactable.id,
+                    name: result.lootName || 'Loot',
+                    value: result.loot,
+                    isScore: result.isScore || false
+                });
+
+                // Unit picks up the loot
+                this.unit.pickupLoot(lootBag);
+                console.log(`[${this.unit.id}] Picked up ${lootBag.name} ($${lootBag.value})${lootBag.isScore ? ' [THE SCORE]' : ''}`);
             }
 
             this.targetInteractable = null;

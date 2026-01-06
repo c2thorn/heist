@@ -302,19 +302,24 @@ export class Safe extends Interactable {
             ...config,
             type: InteractableType.SAFE,
             label: config.label || 'Safe',
-            color: '#ffd700',
+            color: config.isScore ? '#ffd700' : '#c9a227', // Gold for Score, darker for side
             duration: config.duration || 8,
             dc: config.dc || 9
         });
 
         this.lootValue = config.lootValue || 1000;
+        this.isScore = config.isScore || false;  // Is this THE primary Score?
+        this.lootName = config.lootName || (this.isScore ? 'The Score' : 'Loot');
     }
 
     onSuccess() {
         return {
             type: 'safe_crack',
             message: `Safe cracked! +$${this.lootValue}`,
-            loot: this.lootValue
+            loot: this.lootValue,
+            lootName: this.lootName,
+            interactableId: this.id,
+            isScore: this.isScore
         };
     }
 

@@ -60,6 +60,10 @@ export class Tile {
                 this.isWalkable = true;     // All doors are pathable
                 this.isCover = true;
                 this.isTransparent = false;
+                // Unlock timing (can be set from JSON data)
+                this.unlockDuration = 10.0;           // Default unlock time in seconds
+                this.quickUnlockDuration = null;      // Faster time if arrangement purchased
+                this.quickUnlockArrangement = null;   // Arrangement ID that enables quick unlock
                 break;
             case GridConfig.TILE_TYPE.WINDOW:
                 this.isWalkable = false;

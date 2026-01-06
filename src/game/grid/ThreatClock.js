@@ -3,24 +3,26 @@
  * Per SPEC_004 Section 2 - The Timeline (Global Clock)
  */
 
+import { GameConfig } from '../GameConfig.js';
+
 /**
  * Threat zones that escalate as time passes
  */
 export const ThreatZone = {
-    CASUAL: 0,      // 0-60s: Guards walk, 60° FOV, 1.0x detection
-    ALERT: 1,       // 60-120s: Guards walk fast, 90° FOV, 1.5x detection
-    LOCKDOWN: 2,    // 120-180s: Guards run, 120° FOV, 2.0x detection
-    SWAT: 3         // 180s+: Infinite waves, chaos
+    CASUAL: 0,      // Guards walk, 60° FOV, 1.0x detection
+    ALERT: 1,       // Guards walk fast, 90° FOV, 1.5x detection
+    LOCKDOWN: 2,    // Guards run, 120° FOV, 2.0x detection
+    SWAT: 3         // Infinite waves, chaos
 };
 
 /**
- * Zone thresholds in seconds
+ * Zone thresholds in seconds (from GameConfig)
  */
 const ZONE_THRESHOLDS = {
-    [ThreatZone.CASUAL]: 0,
-    [ThreatZone.ALERT]: 60,
-    [ThreatZone.LOCKDOWN]: 120,
-    [ThreatZone.SWAT]: 180
+    [ThreatZone.CASUAL]: GameConfig.THREAT_CLOCK.CASUAL_START,
+    [ThreatZone.ALERT]: GameConfig.THREAT_CLOCK.ALERT_START,
+    [ThreatZone.LOCKDOWN]: GameConfig.THREAT_CLOCK.LOCKDOWN_START,
+    [ThreatZone.SWAT]: GameConfig.THREAT_CLOCK.SWAT_START
 };
 
 /**

@@ -32,6 +32,13 @@ export const GameConfig = {
         DECAY_RATE: 10,
         INITIAL_HEAT: 0
     },
+    THREAT_CLOCK: {
+        // Zone thresholds in seconds
+        CASUAL_START: 0,
+        ALERT_START: 30,      // Was 60s
+        LOCKDOWN_START: 60,   // Was 120s
+        SWAT_START: 90        // Was 180s
+    },
     MAP: {
         DEFAULT_ROWS: 4,
         VIEWPORT_PADDING: 100

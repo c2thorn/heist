@@ -3,6 +3,7 @@ import { GridConfig } from './GridConfig.js';
 import { Unit } from './Unit.js';
 import { VisionCone } from './VisionCone.js';
 import { Safe, Computer, SecurityPanel } from './Interactable.js';
+import { ExtractionPoint } from './ExtractionPoint.js';
 
 /**
  * BuildingLoader - Creates TileMap and entities from building JSON data
@@ -15,7 +16,7 @@ export class BuildingLoader {
      * @returns {{ tileMap: TileMap, guards: Array, interactables: Array, crewSpawns: Array, visionCones: Array }}
      */
     static load(data) {
-        const { width, height, zones, rooms, building, guards, interactables, crewSpawns, openDoors, initiallyRevealed } = data;
+        const { width, height, zones, rooms, building, guards, interactables, crewSpawns, openDoors, initiallyRevealed, score, sideScores, extraction } = data;
 
         // 1. Create TileMap
         const tileMap = new TileMap(width, height);
@@ -84,7 +85,15 @@ export class BuildingLoader {
         const interactableEntities = [];
         if (interactables) {
             for (const intData of interactables) {
-                const entity = this._createInteractable(intData);
+                // Check if this interactable is THE Score
+                const isScore = score && score.interactableId === intData.id;
+                const scoreConfig = isScore ? {
+                    isScore: true,
+                    lootValue: score.value,
+                    lootName: score.name
+                } : {};
+
+                const entity = this._createInteractable({ ...intData, ...scoreConfig });
                 if (entity) {
                     interactableEntities.push(entity);
                 }
@@ -94,12 +103,27 @@ export class BuildingLoader {
         // 9. Parse crew spawns
         const spawns = crewSpawns || [{ x: width / 2, y: height - 4, default: true }];
 
+        // 10. Parse extraction points
+        const extractionPoints = [];
+        if (extraction?.points) {
+            for (const pointData of extraction.points) {
+                extractionPoints.push(new ExtractionPoint(pointData));
+            }
+        }
+
+        // 11. Parse score data (for HeistOutcomeEngine)
+        const scoreData = score || null;
+        const sideScoreData = sideScores || [];
+
         return {
             tileMap,
             guards: guardEntities,
             interactables: interactableEntities,
             crewSpawns: spawns,
-            visionCones
+            visionCones,
+            extractionPoints,
+            scoreData,
+            sideScoreData
         };
     }
 
@@ -142,9 +166,21 @@ export class BuildingLoader {
         if (doors) {
             for (const door of doors) {
                 tileMap.setTile(door.x, door.y, GridConfig.TILE_TYPE.DOOR);
-                if (door.locked) {
-                    const tile = tileMap.getTile(door.x, door.y);
-                    if (tile) tile.lockDoor();
+                const tile = tileMap.getTile(door.x, door.y);
+                if (tile) {
+                    if (door.locked) {
+                        tile.lockDoor();
+                    }
+                    // Store unlock timing data if provided
+                    if (door.unlockDuration !== undefined) {
+                        tile.unlockDuration = door.unlockDuration;
+                    }
+                    if (door.quickUnlockDuration !== undefined) {
+                        tile.quickUnlockDuration = door.quickUnlockDuration;
+                    }
+                    if (door.quickUnlockArrangement) {
+                        tile.quickUnlockArrangement = door.quickUnlockArrangement;
+                    }
                 }
             }
         }
@@ -202,7 +238,10 @@ export class BuildingLoader {
             name: data.label,
             duration: data.duration,
             dc: data.dc,
-            lootValue: data.lootValue
+            lootValue: data.lootValue,
+            // Score-specific properties (set by load() for the primary Score)
+            isScore: data.isScore || false,
+            lootName: data.lootName
         };
 
         switch (data.type) {

@@ -64,6 +64,10 @@ export class Unit {
         this.color = '#00ff88';
         this.radius = 12;
 
+        // Loot carrying (Win/Lose system)
+        this.carriedLoot = [];         // Array of LootBag instances
+        this.isCaptured = false;       // True if captured by guards
+
         // Task Processor (The Brain)
         this.taskProcessor = new TaskProcessor(this);
 
@@ -510,5 +514,61 @@ export class Unit {
      */
     getTaskStatus() {
         return this.taskProcessor ? this.taskProcessor.state : 'OFFLINE';
+    }
+
+    // === LOOT SYSTEM ===
+
+    /**
+     * Pick up a loot bag
+     * @param {LootBag} loot - Loot to pick up
+     */
+    pickupLoot(loot) {
+        if (this.isCaptured || this.isExtracted) return;
+
+        loot.pickup(this.id);
+        this.carriedLoot.push(loot);
+        console.log(`[${this.id}] Picked up: ${loot.name} ($${loot.value})`);
+    }
+
+    /**
+     * Get total value of carried loot
+     * @returns {number} Total cash value
+     */
+    getTotalLootValue() {
+        return this.carriedLoot.reduce((sum, loot) => sum + loot.value, 0);
+    }
+
+    /**
+     * Check if carrying THE Score
+     * @returns {boolean}
+     */
+    hasScore() {
+        return this.carriedLoot.some(loot => loot.isScore);
+    }
+
+    // === CAPTURE SYSTEM (Hook for future Guard AI) ===
+
+    /**
+     * Capture this unit (called by guard AI when detected)
+     * Loot is forfeit, unit is removed from play
+     */
+    capture() {
+        if (this.isCaptured || this.isExtracted) return;
+
+        this.isCaptured = true;
+
+        // Stop all movement and tasks
+        this.stop();
+        if (this.taskProcessor) {
+            this.taskProcessor.state = 'CAPTURED';
+        }
+
+        // Loot is lost (handled by HeistOutcomeEngine)
+        console.log(`[${this.id}] CAPTURED! Loot lost: $${this.getTotalLootValue()}`);
+
+        // Notify outcome engine (if available)
+        if (window.outcomeEngine) {
+            window.outcomeEngine.captureUnit(this);
+        }
     }
 }
