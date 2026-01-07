@@ -6,10 +6,15 @@
 // Import room templates
 import entranceTemplate from './rooms/global/entrance.json';
 import hallwayHubTemplate from './rooms/global/hallway_hub.json';
+import storageClosetTemplate from './rooms/global/storage_closet.json';
 import vaultTemplate from './rooms/bank/vault_small.json';
+import vaultLargeTemplate from './rooms/bank/vault_large.json';
 import securityTemplate from './rooms/bank/security_room.json';
 import officeTemplate from './rooms/bank/office.json';
 import tellerTemplate from './rooms/bank/teller_area.json';
+import serverRoomTemplate from './rooms/bank/server_room.json';
+import breakRoomTemplate from './rooms/bank/break_room.json';
+import conferenceTemplate from './rooms/bank/conference_room.json';
 
 // Import archetypes
 import bankArchetype from './archetypes/bank.json';
@@ -18,10 +23,15 @@ import bankArchetype from './archetypes/bank.json';
 const ROOM_TEMPLATES = {
     entrance: entranceTemplate,
     hallway_hub: hallwayHubTemplate,
+    storage_closet: storageClosetTemplate,
     vault_small: vaultTemplate,
+    vault_large: vaultLargeTemplate,
     security_room: securityTemplate,
     office: officeTemplate,
-    teller_area: tellerTemplate
+    teller_area: tellerTemplate,
+    server_room: serverRoomTemplate,
+    break_room: breakRoomTemplate,
+    conference_room: conferenceTemplate
 };
 
 // Archetype registry
@@ -199,18 +209,24 @@ function placeRoomsInGrid(rooms, gridWidth, gridHeight) {
     const entranceIdx = rooms.findIndex(r => r.id === 'entrance');
     const vaultIdx = rooms.findIndex(r => r.id.includes('vault'));
 
-    // Place entrance at bottom center
+    // Place entrance at bottom center, flush with south edge
     if (entranceIdx >= 0) {
         const entrance = rooms.splice(entranceIdx, 1)[0];
         const gx = Math.floor(gridWidth / 2);
         const gy = gridHeight - 1; // Bottom row
         grid[gy][gx] = entrance;
+
+        // Position entrance so its south wall is at the building edge
+        // Building shell ends at mapHeight - 2, so entrance.y + entrance.height should equal that
+        const mapHeight = gridHeight * CELL_SIZE + 4;
+        const entranceY = mapHeight - 2 - entrance.height; // Flush with south wall
+
         placed.push({
             ...entrance,
             gridX: gx,
             gridY: gy,
             x: gx * CELL_SIZE + 2,
-            y: gy * CELL_SIZE + 2
+            y: entranceY
         });
     }
 
@@ -533,6 +549,9 @@ function buildBuildingJSON(archetype, placedRooms, width, height, difficulty) {
     // Validation pass: ensure all rooms are reachable
     validateAndFixConnectivity(building, placedRooms, width, height);
 
+    // Generate entrances and exits based on map size
+    generateEntrancesAndExits(building, placedRooms, width, height);
+
     return building;
 }
 
@@ -834,6 +853,126 @@ function createEmergencyCorridor(building, roomA, roomB) {
     }
 
     building.rooms.push(corridorDef);
+}
+
+/**
+ * Generate entrances and exits based on map size
+ * Rules:
+ * - 4-5 rooms: 1 entrance, 1 exit
+ * - 6-7 rooms: 1 entrance, 2 exits
+ * - 8+ rooms: 2 entrances, 2 exits
+ */
+function generateEntrancesAndExits(building, placedRooms, mapWidth, mapHeight) {
+    const roomCount = placedRooms.length;
+    const entryRoom = placedRooms.find(r => r.hasEntryPoint || r.entryDoor);
+
+    if (!entryRoom) {
+        console.warn('[MapGenerator] No entry room found');
+        return;
+    }
+
+    // Determine exit count based on size
+    // Entry point is always an exit too
+    let exitCount = 1;
+    if (roomCount >= 8) {
+        exitCount = 2;
+    } else if (roomCount >= 6) {
+        exitCount = 2;
+    }
+
+    console.log(`[MapGenerator] Generating ${exitCount} exit(s) for ${roomCount} rooms`);
+
+    // Calculate entry door position based on room's entryDoor config
+    // Exit must be on a FLOOR tile (interior, 1 tile inside wall)
+    let entryX, entryY;
+    const entryDoor = entryRoom.entryDoor || { edge: 'south', offsetX: Math.floor(entryRoom.width / 2) };
+
+    switch (entryDoor.edge) {
+        case 'south':
+            entryX = entryRoom.x + (entryDoor.offsetX || Math.floor(entryRoom.width / 2));
+            entryY = entryRoom.y + entryRoom.height - 2; // Interior floor (1 inside wall)
+            break;
+        case 'north':
+            entryX = entryRoom.x + (entryDoor.offsetX || Math.floor(entryRoom.width / 2));
+            entryY = entryRoom.y + 2; // Interior floor
+            break;
+        case 'east':
+            entryX = entryRoom.x + entryRoom.width - 2;
+            entryY = entryRoom.y + (entryDoor.offsetY || Math.floor(entryRoom.height / 2));
+            break;
+        case 'west':
+            entryX = entryRoom.x + 2;
+            entryY = entryRoom.y + (entryDoor.offsetY || Math.floor(entryRoom.height / 2));
+            break;
+    }
+
+    // Main entry/exit (same point - crew enters and exits here)
+    building.extraction.points.push({
+        id: 'main_exit',
+        name: entryRoom.name || 'Main Exit',
+        x: entryX,
+        y: entryY,
+        gridX: entryX,
+        gridY: entryY,
+        isDefault: true
+    });
+
+    // Crew spawn inside entry room
+    if (building.crewSpawns.length === 0) {
+        const spawn = entryRoom.crewSpawns?.[0];
+        building.crewSpawns.push({
+            x: entryRoom.x + (spawn?.offsetX || Math.floor(entryRoom.width / 2)),
+            y: entryRoom.y + (spawn?.offsetY || entryRoom.height - 2),
+            default: true
+        });
+    }
+
+    // Additional exit if needed (on different edge)
+    if (exitCount >= 2) {
+        // Pick opposite edge from entry
+        const oppositeEdges = {
+            'south': { side: 'north', x: Math.floor(mapWidth / 2), y: 2 },
+            'north': { side: 'south', x: Math.floor(mapWidth / 2), y: mapHeight - 3 },
+            'east': { side: 'west', x: 2, y: Math.floor(mapHeight / 2) },
+            'west': { side: 'east', x: mapWidth - 3, y: Math.floor(mapHeight / 2) }
+        };
+
+        const entryEdge = entryDoor.edge || 'south';
+        const backExit = oppositeEdges[entryEdge];
+
+        building.extraction.points.push({
+            id: 'back_exit',
+            name: 'Back Exit',
+            x: backExit.x,
+            y: backExit.y,
+            gridX: backExit.x,
+            gridY: backExit.y,
+            isDefault: false
+        });
+
+        // Add floor tiles at back exit
+        building.rooms.push({
+            zone: 'exterior',
+            bounds: { x1: backExit.x - 1, y1: backExit.y - 1, x2: backExit.x + 1, y2: backExit.y + 1 },
+            interior: { x1: backExit.x, y1: backExit.y, x2: backExit.x, y2: backExit.y },
+            doors: [],
+            connections: [
+                { x: backExit.x, y: backExit.y, type: 'FLOOR' },
+                { x: backExit.x, y: backExit.y + 1, type: 'FLOOR' }
+            ]
+        });
+
+        // Add crew spawn at back exit for larger maps
+        if (roomCount >= 8) {
+            building.crewSpawns.push({
+                x: backExit.x,
+                y: backExit.y + 2,
+                default: false
+            });
+        }
+    }
+
+    console.log(`[MapGenerator] Created ${building.extraction.points.length} extraction points`);
 }
 
 export const ARCHETYPE_IDS = Object.keys(ARCHETYPES);

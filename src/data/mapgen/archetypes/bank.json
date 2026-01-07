@@ -3,7 +3,9 @@
     "name": "Bank",
     "difficulty": 2,
     "minRooms": 4,
-    "maxRooms": 7,
+    "maxRooms": 8,
+    "entryRoomType": "entrance",
+    "entryEdge": "south",
     "requiredRooms": [
         "entrance",
         "vault_small"
@@ -12,12 +14,17 @@
         "office",
         "security_room",
         "teller_area",
-        "hallway_hub"
+        "hallway_hub",
+        "server_room",
+        "break_room",
+        "conference_room",
+        "storage_closet",
+        "vault_large"
     ],
     "minGuards": 1,
-    "maxGuards": 2,
+    "maxGuards": 3,
     "minCameras": 0,
-    "maxCameras": 2,
+    "maxCameras": 3,
     "scoreRange": [
         5000,
         15000
@@ -32,7 +39,9 @@
         "Central Savings",
         "Union Trust",
         "City Bank & Trust",
-        "Commonwealth Bank"
+        "Commonwealth Bank",
+        "Pacific Savings",
+        "Heritage Trust"
     ],
     "zones": [
         {
@@ -64,6 +73,26 @@
             "id": "vault",
             "name": "Vault",
             "color": "#1a365d"
+        },
+        {
+            "id": "server",
+            "name": "Server Room",
+            "color": "#064e3b"
+        },
+        {
+            "id": "break",
+            "name": "Break Room",
+            "color": "#4a5568"
+        },
+        {
+            "id": "conference",
+            "name": "Conference Room",
+            "color": "#5b4b8a"
+        },
+        {
+            "id": "storage",
+            "name": "Storage",
+            "color": "#374151"
         }
     ]
 }

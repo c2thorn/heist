@@ -113,3 +113,37 @@
 .accept-contract-btn:hover {
     background: #ffdb4d;
 }
+
+/* Debug info panel */
+.contract-debug {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 3px;
+    padding: 8px;
+    font-size: 10px;
+    color: #888;
+    font-family: monospace;
+}
+
+.contract-debug div {
+    margin-top: 4px;
+}
+
+.debug-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 9px;
+    letter-spacing: 1px;
+}
+
+.debug-tag.generated {
+    background: #2d5a27;
+    color: #7fff7f;
+}
+
+.debug-tag.static {
+    background: #5a3f27;
+    color: #ffa500;
+}

@@ -1,0 +1,25 @@
+{
+    "id": "storage_closet",
+    "name": "Storage Closet",
+    "category": "global",
+    "archetypes": [
+        "*"
+    ],
+    "width": 4,
+    "height": 4,
+    "zone": "storage",
+    "requiresIntel": false,
+    "doorType": "door",
+    "interactables": [
+        {
+            "type": "ITEM",
+            "offsetX": 2,
+            "offsetY": 2,
+            "label": "Supply Cabinet",
+            "duration": 2,
+            "dc": 4
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": []
+}

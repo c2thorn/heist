@@ -1,0 +1,62 @@
+{
+    "id": "vault_large",
+    "name": "Main Vault",
+    "category": "bank",
+    "archetypes": [
+        "bank"
+    ],
+    "width": 10,
+    "height": 10,
+    "zone": "vault",
+    "requiresIntel": true,
+    "intelCost": 4,
+    "doorType": "locked",
+    "unlockDuration": 15.0,
+    "interactables": [
+        {
+            "type": "SAFE",
+            "offsetX": 5,
+            "offsetY": 3,
+            "label": "Main Vault",
+            "duration": 10,
+            "dc": 12,
+            "isScore": true
+        },
+        {
+            "type": "SAFE",
+            "offsetX": 3,
+            "offsetY": 5,
+            "label": "Safety Deposit A",
+            "duration": 4,
+            "dc": 6,
+            "lootValue": 800
+        },
+        {
+            "type": "SAFE",
+            "offsetX": 7,
+            "offsetY": 5,
+            "label": "Safety Deposit B",
+            "duration": 4,
+            "dc": 6,
+            "lootValue": 800
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": [],
+    "cameras": [
+        {
+            "offsetX": 1,
+            "offsetY": 1,
+            "facing": 135,
+            "fov": 60,
+            "range": 5
+        },
+        {
+            "offsetX": 8,
+            "offsetY": 1,
+            "facing": 225,
+            "fov": 60,
+            "range": 5
+        }
+    ]
+}

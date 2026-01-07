@@ -31,6 +31,36 @@ export class JobBoardUI {
         const contracts = ContractGenerator.generateDailyContracts(diff);
 
         contracts.forEach(contract => {
+            // Build debug info from map data
+            const mapData = contract.mapData || null;
+            const building = mapData?.building || null;
+            const isGenerated = !!mapData;
+
+            let debugInfo = '';
+            if (building) {
+                const roomCount = building.rooms?.length || 0;
+                const guardCount = building.guards?.length || 0;
+                const cameraCount = building.cameras?.length || 0;
+                const interactableCount = building.interactables?.length || 0;
+                const hiddenZoneCount = building.hiddenZones?.length || 0;
+
+                debugInfo = `
+                    <div class="contract-debug">
+                        <span class="debug-tag generated">GENERATED</span>
+                        <div>Rooms: ${roomCount} | Guards: ${guardCount} | Cams: ${cameraCount}</div>
+                        <div>Interactables: ${interactableCount} | Hidden Zones: ${hiddenZoneCount}</div>
+                        <div>Size: ${building.width}x${building.height}</div>
+                    </div>
+                `;
+            } else {
+                debugInfo = `
+                    <div class="contract-debug">
+                        <span class="debug-tag static">STATIC</span>
+                        <div>Map ID: ${contract.buildingId}</div>
+                    </div>
+                `;
+            }
+
             const card = document.createElement('div');
             card.className = 'contract-card';
             card.innerHTML = `
@@ -41,6 +71,7 @@ export class JobBoardUI {
                     <span>REWARD: x${contract.rewardMult}</span>
                 </div>
                 <p class="contract-desc">${contract.description}</p>
+                ${debugInfo}
                 <button class="accept-contract-btn">ACCEPT CONTRACT</button>
             `;
 

@@ -1,0 +1,34 @@
+{
+    "id": "conference_room",
+    "name": "Conference Room",
+    "category": "bank",
+    "archetypes": [
+        "bank",
+        "corporate"
+    ],
+    "width": 10,
+    "height": 8,
+    "zone": "conference",
+    "requiresIntel": true,
+    "intelCost": 1,
+    "doorType": "door",
+    "interactables": [
+        {
+            "type": "COMPUTER",
+            "offsetX": 5,
+            "offsetY": 2,
+            "label": "Presentation System",
+            "duration": 3,
+            "dc": 5
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": [],
+    "sideScore": {
+        "name": "Briefcase",
+        "value": 600,
+        "offsetX": 7,
+        "offsetY": 4,
+        "duration": 2
+    }
+}

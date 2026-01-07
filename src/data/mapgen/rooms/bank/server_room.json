@@ -1,0 +1,45 @@
+{
+    "id": "server_room",
+    "name": "Server Room",
+    "category": "bank",
+    "archetypes": [
+        "bank",
+        "corporate"
+    ],
+    "width": 8,
+    "height": 6,
+    "zone": "server",
+    "requiresIntel": true,
+    "intelCost": 2,
+    "doorType": "locked",
+    "unlockDuration": 4.0,
+    "interactables": [
+        {
+            "type": "COMPUTER",
+            "offsetX": 4,
+            "offsetY": 2,
+            "label": "Server Terminal",
+            "duration": 5,
+            "dc": 8
+        },
+        {
+            "type": "PANEL",
+            "offsetX": 2,
+            "offsetY": 2,
+            "label": "Server Rack",
+            "duration": 4,
+            "dc": 6
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": [],
+    "cameras": [
+        {
+            "offsetX": 6,
+            "offsetY": 1,
+            "facing": 180,
+            "fov": 60,
+            "range": 4
+        }
+    ]
+}

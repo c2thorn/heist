@@ -11,22 +11,17 @@
     "requiresIntel": false,
     "doorType": "open",
     "hasEntryPoint": true,
+    "entryDoor": {
+        "edge": "south",
+        "offsetX": 4
+    },
     "interactables": [],
     "guardSpawns": [],
     "crewSpawns": [
         {
-            "offsetX": 3,
-            "offsetY": 5,
-            "default": true
-        },
-        {
             "offsetX": 4,
-            "offsetY": 5
+            "offsetY": 6,
+            "default": true
         }
-    ],
-    "extraction": {
-        "offsetX": 3,
-        "offsetY": 6,
-        "isDefault": true
-    }
+    ]
 }

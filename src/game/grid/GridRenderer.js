@@ -74,11 +74,15 @@ export class GridRenderer {
         // Setup canvas size to viewport
         this._resizeCanvas();
 
-        // Center camera on map initially
-        this._centerCamera();
+
 
         // Bind input handlers
         this._setupInputHandlers();
+
+        // Clamp camera to valid bounds immediately (prevents jump on first scroll)
+        console.log('[Camera] Before initial clamp:', this.camera.x, this.camera.y);
+        this._clampCamera();
+        console.log('[Camera] After initial clamp:', this.camera.x, this.camera.y);
 
         // Setup Phase Hover State
         this.hoveredAssetId = null;
@@ -202,26 +206,27 @@ export class GridRenderer {
         this.canvas.height = this.camera.height;
     }
 
-    /**
-     * Center camera on the map
-     */
-    _centerCamera() {
-        const bounds = this.tileMap.getWorldBounds();
-        this.camera.x = Math.max(0, (bounds.width - this.camera.width) / 2);
-        this.camera.y = Math.max(0, (bounds.height - this.camera.height) / 2);
-        this._clampCamera();
-    }
+
 
     /**
-     * Clamp camera to map bounds
+     * Clamp camera to map bounds with padding for UI elements
      */
     _clampCamera() {
         const bounds = this.tileMap.getWorldBounds();
-        const maxX = Math.max(0, bounds.width - this.camera.width);
-        const maxY = Math.max(0, bounds.height - this.camera.height);
+        const padding = 80;
 
-        this.camera.x = Math.max(0, Math.min(this.camera.x, maxX));
-        this.camera.y = Math.max(0, Math.min(this.camera.y, maxY));
+        const minX = -padding;
+        const minY = -padding;
+        const maxX = Math.max(0, bounds.width - this.camera.width + padding);
+        const maxY = Math.max(0, bounds.height - this.camera.height + padding);
+
+        const oldX = this.camera.x, oldY = this.camera.y;
+        this.camera.x = Math.max(minX, Math.min(this.camera.x, maxX));
+        this.camera.y = Math.max(minY, Math.min(this.camera.y, maxY));
+
+        if (oldX !== this.camera.x || oldY !== this.camera.y) {
+            console.log(`[Camera] Clamp changed: (${oldX.toFixed(0)}, ${oldY.toFixed(0)}) -> (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)}) bounds: ${bounds.width}x${bounds.height}`);
+        }
     }
 
     /**
@@ -1134,16 +1139,20 @@ export class GridRenderer {
      */
     setTileMap(tileMap) {
         this.tileMap = tileMap;
-        this._centerCamera();
+        console.log('[Camera] setTileMap called, before clamp:', this.camera.x, this.camera.y);
+        this._clampCamera();
+        console.log('[Camera] setTileMap after clamp:', this.camera.x, this.camera.y);
     }
 
     /**
      * Pan to a specific grid position
      */
     panTo(gridX, gridY) {
+        console.log(`[Camera] panTo called: grid(${gridX}, ${gridY})`);
         const world = this.tileMap.gridToWorld(gridX, gridY);
         this.camera.x = world.x - this.camera.width / 2;
         this.camera.y = world.y - this.camera.height / 2;
+        console.log(`[Camera] panTo set camera to: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`);
         this._clampCamera();
     }
 }

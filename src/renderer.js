@@ -647,19 +647,10 @@ function spawnActiveCrew() {
     GameManager.units.push(unit);
   });
 
-  // Defaults & Camera Focus
+  // Defaults
   if (window.allUnits.length > 0) {
     window.selectedUnit = window.allUnits[0];
     window.planningUnitId = window.selectedUnit.id; // Sync planner selection
-
-    // Force Camera Center on Squad
-    if (window.gridRenderer) {
-      const firstUnit = window.allUnits[0];
-      window.gridRenderer.camera.x = firstUnit.worldPos.x - window.gridRenderer.camera.width / 2;
-      window.gridRenderer.camera.y = firstUnit.worldPos.y - window.gridRenderer.camera.height / 2;
-      window.gridRenderer._clampCamera(); // Ensure we don't show void
-    }
-
     setupPhaseUI.refresh();
   }
 }
@@ -751,11 +742,7 @@ window.addEventListener('mapLoaded', (e) => {
   if (hudCenter) hudCenter.style.display = 'flex';
   if (actionPanel) actionPanel.style.display = 'flex';
 
-  if (window.gridRenderer) {
-    const ts = GridConfig.TILE_SIZE;
-    window.gridRenderer.camera.x = 16 * ts - window.gridRenderer.camera.width / 2;
-    window.gridRenderer.camera.y = 25 * ts - window.gridRenderer.camera.height / 2;
-  }
+
 
   setupPhaseUI.show();
   switchDeckTab('roster');
