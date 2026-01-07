@@ -64,6 +64,9 @@ export class InteractableEntity extends MapEntity {
         if (this.interactable.state === 'COMPLETED') {
             this.color = '#666666';
         }
+
+        // Sync hover state to underlying interactable for render code
+        this.interactable.isHovered = this.isHovered;
     }
 
     render(ctx, camera) {

@@ -8,12 +8,10 @@ class ShopManager {
     init() {
         this.elements = {
             shopScreen: document.getElementById('shop-screen'),
-            dayText: document.getElementById('day-display'), // GLOBAL ID
-            cashText: document.getElementById('cash-display'), // GLOBAL ID
-            heatText: document.getElementById('shop-heat'),
+            dayText: document.getElementById('day-display'),
+            cashText: document.getElementById('cash-display'),
             buyIntelBtn: document.getElementById('buy-intel-btn'),
             launderBtn: document.getElementById('launder-btn'),
-            // New containers
             recruitList: document.getElementById('recruit-list'),
             gearList: document.getElementById('gear-list')
         };
@@ -45,8 +43,6 @@ class ShopManager {
         const { meta, shop } = GameManager.gameState;
         if (this.elements.dayText) this.elements.dayText.innerText = `DAY: ${meta.currentDay}`;
         if (this.elements.cashText) this.elements.cashText.innerText = `CASH: $${meta.cash}`;
-
-        if (this.elements.heatText) this.elements.heatText.style.display = 'none';
 
         if (this.elements.buyIntelBtn) this.elements.buyIntelBtn.disabled = meta.cash < 200;
         if (this.elements.launderBtn) this.elements.launderBtn.disabled = meta.cash < 500;
@@ -84,7 +80,7 @@ class ShopManager {
                     btn.disabled = true;
                     btn.style.backgroundColor = '#222';
                     btn.style.color = '#666';
-                    window.dispatchEvent(new CustomEvent('intelPurchased'));
+                    window.dispatchEvent(new CustomEvent('resourcesChanged'));
                 }
             });
 
@@ -115,7 +111,7 @@ class ShopManager {
                     btn.disabled = true;
                     btn.style.backgroundColor = '#222';
                     btn.style.color = '#666';
-                    window.dispatchEvent(new CustomEvent('intelPurchased'));
+                    window.dispatchEvent(new CustomEvent('resourcesChanged'));
                 }
             });
 
@@ -125,7 +121,7 @@ class ShopManager {
 
     startDay() {
         GameManager.startNextDay(null);
-        window.dispatchEvent(new CustomEvent('nextDayStarted'));
+        // Note: nextDayStarted event should be dispatched from post-mission UI only
         this.updateUI();
     }
 }

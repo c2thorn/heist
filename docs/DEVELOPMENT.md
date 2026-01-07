@@ -17,7 +17,7 @@ npm run dev
 1. **Job Board** - Select a contract (click any card)
 2. **Planning Phase** - Purchase intel, set crew objectives
 3. **Execute Heist** - Watch crew execute in real-time
-4. **Debrief** - (Not yet implemented)
+4. **Debrief** - HeistSummaryUI shows outcome, loot, crew status
 
 ## Console Testing
 

@@ -1,7 +1,7 @@
 # Project CLOCKWORK - Game Design Document v5.0
 
 **Status:** Living Document  
-**Last Updated:** 2026-01-04  
+**Last Updated:** 2026-01-07  
 **Goal:** Tactical heist roguelike - *Ocean's Eleven* meets *Slay the Spire* meets *Darkest Dungeon*
 
 ---
@@ -173,9 +173,9 @@ Arrangements loaded from JSON, purchasable with Cash.
 | Condition | Status |
 |-----------|--------|
 | **Win:** Cash ≥ Target | Current: $5000 (needs rebalancing) |
-| **Win:** Extract all crew + loot | Not yet implemented |
+| **Win:** Extract crew + loot | HeistOutcomeEngine calculates tiers |
 | **Lose:** Heat ≥ 100% | Implemented |
-| **Lose:** All crew captured | Not yet implemented |
+| **Lose:** All crew captured | HeistOutcomeEngine DISASTER tier |
 
 ---
 

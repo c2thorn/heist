@@ -80,9 +80,7 @@ export class GridRenderer {
         this._setupInputHandlers();
 
         // Clamp camera to valid bounds immediately (prevents jump on first scroll)
-        console.log('[Camera] Before initial clamp:', this.camera.x, this.camera.y);
         this._clampCamera();
-        console.log('[Camera] After initial clamp:', this.camera.x, this.camera.y);
 
         // Setup Phase Hover State
         this.hoveredAssetId = null;
@@ -220,13 +218,8 @@ export class GridRenderer {
         const maxX = Math.max(0, bounds.width - this.camera.width + padding);
         const maxY = Math.max(0, bounds.height - this.camera.height + padding);
 
-        const oldX = this.camera.x, oldY = this.camera.y;
         this.camera.x = Math.max(minX, Math.min(this.camera.x, maxX));
         this.camera.y = Math.max(minY, Math.min(this.camera.y, maxY));
-
-        if (oldX !== this.camera.x || oldY !== this.camera.y) {
-            console.log(`[Camera] Clamp changed: (${oldX.toFixed(0)}, ${oldY.toFixed(0)}) -> (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)}) bounds: ${bounds.width}x${bounds.height}`);
-        }
     }
 
     /**
@@ -273,39 +266,11 @@ export class GridRenderer {
             const gridPos = this.tileMap.worldToGrid(world.x, world.y);
             this.hoveredTile = this.tileMap.getTile(gridPos.x, gridPos.y);
 
-            // NEW: Check EntityLayer first (unified system)
+            // EntityLayer handles all entity hover detection (units, interactables, icons)
             const hoveredEntity = this.entityLayer.updateHover(screenX, screenY, this.camera);
 
-            // Legacy: Check for hovered interactable
-            this.hoveredInteractable = null;
-            const hitRadius = this.tileSize * 0.5;
-            for (const interactable of this.interactables) {
-                const iWorldPos = interactable.getWorldPos();
-                const iScreenPos = this.worldToScreen(iWorldPos.x, iWorldPos.y);
-                const dist = Math.hypot(screenX - iScreenPos.x, screenY - iScreenPos.y);
-                if (dist < hitRadius) {
-                    this.hoveredInteractable = interactable;
-                    break;
-                }
-            }
-
-            // Legacy: Check for hovered unit
-            this.hoveredUnit = null;
-            for (const unit of this.units) {
-                const uScreenPos = this.worldToScreen(unit.worldPos.x, unit.worldPos.y);
-                const dist = Math.hypot(screenX - uScreenPos.x, screenY - uScreenPos.y);
-                if (dist < unit.radius + 5) {
-                    this.hoveredUnit = unit;
-                    break;
-                }
-            }
-
-            // Update cursor style
-            if (hoveredEntity || this.hoveredInteractable || this.hoveredUnit) {
-                this.canvas.style.cursor = 'pointer';
-            } else {
-                this.canvas.style.cursor = 'default';
-            }
+            // Update cursor style based on hovered entity
+            this.canvas.style.cursor = hoveredEntity ? 'pointer' : 'default';
         });
 
         // Mouse leave
@@ -591,7 +556,7 @@ export class GridRenderer {
             }
 
             const baseRadius = unit.radius || 12;
-            const isHovered = this.hoveredUnit === unit;
+            const isHovered = unit.isHovered || false;
             const isSelected = window.selectedUnit === unit;
 
             // Scale up on hover
@@ -743,8 +708,8 @@ export class GridRenderer {
                 color = '#666666';
             }
 
-            // Check if hovered
-            const isHovered = this.hoveredInteractable === interactable;
+            // Check if hovered (synced from EntityLayer)
+            const isHovered = interactable.isHovered || false;
 
             // Draw the interactable marker
             const size = isHovered ? ts * 0.7 : ts * 0.6; // Scale up on hover
@@ -1139,20 +1104,16 @@ export class GridRenderer {
      */
     setTileMap(tileMap) {
         this.tileMap = tileMap;
-        console.log('[Camera] setTileMap called, before clamp:', this.camera.x, this.camera.y);
         this._clampCamera();
-        console.log('[Camera] setTileMap after clamp:', this.camera.x, this.camera.y);
     }
 
     /**
      * Pan to a specific grid position
      */
     panTo(gridX, gridY) {
-        console.log(`[Camera] panTo called: grid(${gridX}, ${gridY})`);
         const world = this.tileMap.gridToWorld(gridX, gridY);
         this.camera.x = world.x - this.camera.width / 2;
         this.camera.y = world.y - this.camera.height / 2;
-        console.log(`[Camera] panTo set camera to: (${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)})`);
         this._clampCamera();
     }
 }

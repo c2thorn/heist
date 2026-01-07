@@ -18,6 +18,9 @@
 - [x] Vault codes arrangement (1.5s vs 10s)
 - [x] Door unlock progress bar
 - [x] Vision cone fog-of-war hiding
+- [x] Procedural map generation (MapGenerator.js)
+- [x] HeistSummaryUI debrief screen
+- [x] HeistOutcomeEngine score tiers
 
 ---
 
@@ -35,11 +38,12 @@ Currently guards are static. Need:
 ### 2. Win/Lose Conditions
 **Effort:** Low | **Impact:** High
 
-No endgame currently:
-- [ ] All crew extracted with loot → Victory screen
-- [ ] Crew captured → Failure screen  
+~~No endgame currently~~ Partially implemented:
+- [x] HeistOutcomeEngine calculates outcome tiers
+- [x] HeistSummaryUI shows loot/crew status
+- [ ] Crew captured → distinct failure handling
 - [ ] Timer expires → Alarm escalation
-- [ ] Loot summary + payout calculation
+- [x] Loot summary + payout calculation
 
 ### 3. Interactable Completion
 **Effort:** Medium | **Impact:** High
@@ -158,6 +162,9 @@ From GDD - make heists engaging to observe:
 |---------|----------|
 | Game design | `docs/GDD_v5.md` |
 | Code structure | `docs/ARCHITECTURE.md` |
+| Roadmap | `docs/ROADMAP.md` |
+| State migration | `docs/STATE_MIGRATION.md` |
+| Event catalog | `docs/EVENTS.md` |
 | Building data | `src/data/buildings/*.json` |
 | Arrangement data | `src/data/arrangements/*.json` |
 | State | `GameManager.gameState.grid.*` |

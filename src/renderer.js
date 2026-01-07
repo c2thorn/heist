@@ -3,7 +3,6 @@ import './styles/map.css';
 import './styles/hud.css';
 import './styles/command-deck.css';
 import './styles/shop.css';
-import './styles/aar.css';
 import './styles/job-board.css';
 import './styles/setup-phase.css';
 import './styles/heist-summary.css';
@@ -17,6 +16,7 @@ import { UnitContextMenu } from './ui/UnitContextMenu';
 import './styles/context-menu.css';
 import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel, outcomeEngine } from './game/grid/index.js';
 import { getMapById, MAP_POOL } from './data/buildings/index.js';
+import { debugLog } from './game/DebugConfig.js';
 
 let unitContextMenu = null;
 
@@ -557,12 +557,13 @@ function switchView(viewKey) {
       if (el) {
         if (key === viewKey) {
           // Special handling for MAP view vs JOB BOARD
-          if (key === 'map' && !GameManager.gameState.map) {
-            // If checking map but no map exists -> Show Job Board
+          // Show job board when no contract is selected
+          const hasActiveContract = GameManager.gameState.simulation.status !== 'SELECTING_CONTRACT';
+
+          if (key === 'map' && !hasActiveContract) {
+            // No contract selected - show Job Board
             jobBoardUI.render();
-            // We might want to hide the HUD center/action panel if Job Board is full screen?
-            // For now let's keep them but ensure Job Board is on top.
-            el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'none' : 'flex'; // Hide usual HUD in job board
+            el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'none' : 'flex';
           } else {
             el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'flex' : 'block';
             if (key === 'map') jobBoardUI.hide();
@@ -580,8 +581,12 @@ function switchView(viewKey) {
   }
 }
 
-views.map.btn.addEventListener('click', () => switchView('map'));
-views.shop.btn.addEventListener('click', () => switchView('shop'));
+views.map.btn.addEventListener('click', () => {
+  if (!views.map.btn.disabled) switchView('map');
+});
+views.shop.btn.addEventListener('click', () => {
+  if (!views.shop.btn.disabled) switchView('shop');
+});
 
 // ...
 
@@ -624,7 +629,7 @@ function spawnActiveCrew() {
   };
 
   const spawn = findWalkableSpawn(entryX, entryY);
-  console.log(`[Spawn] Found walkable entry at (${spawn.x}, ${spawn.y})`);
+  debugLog('spawn', `Found walkable entry at (${spawn.x}, ${spawn.y})`);
 
   activeCrew.forEach((member, index) => {
     // Stagger spawn positions
@@ -854,79 +859,8 @@ window.addEventListener('heistEventLog', () => {
   // Optional: Auto-switch to map if urgent?
 });
 
-// --- AAR SCREEN LOGIC ---
-window.addEventListener('heistFinished', (e) => {
-  // Unlock View Tabs
-  views.map.btn.disabled = false;
-  views.shop.btn.disabled = false;
-  updateGlobalHeat();
-
-  const result = e.detail;
-  if (!result) return; // Legacy fallback
-
-  const screen = document.getElementById('game-results-screen');
-  const title = document.getElementById('results-title');
-  const msg = document.getElementById('results-msg');
-  const btn = document.getElementById('results-btn');
-
-  if (screen && title && msg) {
-    screen.style.display = 'flex';
-
-    // Set Title
-    title.innerText = result.success ? "HEIST SUCCESSFUL" : "HEIST FAILED";
-    title.style.color = result.success ? "#00ff88" : "#ff4444";
-
-    // Build Breakdown HTML
-    let html = `<div class="aar-breakdown">`;
-
-    // Loot
-    html += `<div class="aar-row"><span class="label">GROSS LOOT</span><span class="value success">+$${result.loot || 0}</span></div>`;
-
-    // Expenses
-    if (result.expenses) {
-      if (result.expenses.wages > 0) {
-        html += `<div class="aar-row"><span class="label">CREW WAGES</span><span class="value danger">-$${result.expenses.wages}</span></div>`;
-      }
-      if (result.expenses.assets > 0) {
-        html += `<div class="aar-row"><span class="label">ASSETS/INTEL</span><span class="value danger">-$${result.expenses.assets}</span></div>`;
-      }
-    }
-
-    html += `<div class="aar-divider"></div>`;
-
-    // Net
-    const netClass = (result.netProfit >= 0) ? 'success' : 'danger';
-    const sign = (result.netProfit >= 0) ? '+' : '';
-    html += `<div class="aar-row total"><span class="label">NET PROFIT</span><span class="value ${netClass}">${sign}$${result.netProfit}</span></div>`;
-
-    html += `</div>`; // Close breakdown
-
-    // Heat Warning
-    if (result.heat >= 100) {
-      html += `<div class="aar-alert">⚠️ MAX HEAT REACHED - CREW BURNED</div>`;
-    }
-
-    msg.innerHTML = html;
-
-    // Button Handler (One-time binding cleanup needed?)
-    // Simplest: Clone button to strip listeners, or use onclick
-    btn.onclick = () => {
-      screen.style.display = 'none';
-
-      // Return to Safehouse / Next Day
-      GameManager.startNextDay();
-
-      // StartNextDay sets status to SELECTING_CONTRACT
-      // Renderer logic (initTileGrid/switchView) needs to handle this transition
-      // Dispatch event manually if needed, but startNextDay does internal state update.
-      // We need to tell the view to switch.
-      window.dispatchEvent(new CustomEvent('nextDayStarted'));
-
-      // Hide overlay elements
-      jobBoardUI.render(); // Force job board?
-    };
-  }
-});
+// Old AAR screen logic removed - heistFinished event was never dispatched
+// New flow uses HeistSummaryUI and heistSummaryClosed event
 
 window.addEventListener('heatLaundered', () => updateGlobalHeat());
 window.addEventListener('heistEventLog', () => updateGlobalHeat()); // Live updates during heist
@@ -1023,7 +957,8 @@ function updateGlobalResources() {
 
 
 
-window.addEventListener('intelPurchased', updateGlobalResources);
+window.addEventListener('resourcesChanged', updateGlobalResources);
+window.addEventListener('intelPurchased', updateGlobalResources); // Legacy compat
 window.addEventListener('nextDayStarted', updateGlobalResources);
 
 updateGlobalHeat();

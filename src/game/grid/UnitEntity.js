@@ -49,6 +49,9 @@ export class UnitEntity extends MapEntity {
         } else {
             this.isVisible = true;
         }
+
+        // Sync hover state to underlying unit for render code
+        this.unit.isHovered = this.isHovered;
     }
 
     /**
