@@ -1,0 +1,34 @@
+{
+    "id": "office",
+    "name": "Manager's Office",
+    "category": "bank",
+    "archetypes": [
+        "bank",
+        "corporate"
+    ],
+    "width": 8,
+    "height": 8,
+    "zone": "office",
+    "requiresIntel": true,
+    "intelCost": 2,
+    "doorType": "door",
+    "interactables": [
+        {
+            "type": "COMPUTER",
+            "offsetX": 5,
+            "offsetY": 2,
+            "label": "Manager's Computer",
+            "duration": 3,
+            "dc": 6
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": [],
+    "sideScore": {
+        "name": "Manager's Safe",
+        "value": 1200,
+        "offsetX": 2,
+        "offsetY": 2,
+        "duration": 5
+    }
+}

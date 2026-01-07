@@ -329,9 +329,24 @@ export class GridRenderer {
         // Prevent context menu on right-click
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        // Left click - select tile
+        // Left click - check entities first, then tile
         this.canvas.addEventListener('click', (e) => {
-            if (this.hoveredTile && !this.isDragging) {
+            if (this.isDragging) return;
+
+            // Get screen coordinates
+            const rect = this.canvas.getBoundingClientRect();
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+
+            // Check entity layer for clicks first (SectorIcons, etc.)
+            const clickedEntity = this.entityLayer.handleClick(screenX, screenY, this.camera);
+            if (clickedEntity) {
+                console.log('Clicked entity:', clickedEntity.id);
+                return; // Entity handled the click
+            }
+
+            // No entity hit - dispatch tile click
+            if (this.hoveredTile) {
                 console.log('Clicked tile:', this.hoveredTile.toJSON());
                 window.dispatchEvent(new CustomEvent('tileClicked', {
                     detail: this.hoveredTile.toJSON()
@@ -1103,11 +1118,22 @@ export class GridRenderer {
     }
 
     /**
+     * Clear all entities for fresh map loading
+     */
+    clearAllEntities() {
+        this.units = [];
+        this.interactables = [];
+        this.visionCones = [];
+        this.entities = [];
+        this.entityLayer.clear();
+        console.log('[GridRenderer] Cleared all entities');
+    }
+
+    /**
      * Update the tile map reference
      */
     setTileMap(tileMap) {
         this.tileMap = tileMap;
-        this.units = [];  // Clear units when map changes
         this._centerCamera();
     }
 

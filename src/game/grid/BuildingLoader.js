@@ -4,6 +4,8 @@ import { Unit } from './Unit.js';
 import { VisionCone } from './VisionCone.js';
 import { Safe, Computer, SecurityPanel } from './Interactable.js';
 import { ExtractionPoint } from './ExtractionPoint.js';
+import { Camera } from './Camera.js';
+import { Alarm } from './Alarm.js';
 
 /**
  * BuildingLoader - Creates TileMap and entities from building JSON data
@@ -16,7 +18,7 @@ export class BuildingLoader {
      * @returns {{ tileMap: TileMap, guards: Array, interactables: Array, crewSpawns: Array, visionCones: Array }}
      */
     static load(data) {
-        const { width, height, zones, rooms, building, guards, interactables, crewSpawns, openDoors, initiallyRevealed, score, sideScores, extraction } = data;
+        const { width, height, zones, rooms, building, guards, interactables, crewSpawns, openDoors, initiallyRevealed, hiddenZones, score, sideScores, extraction, cameras, alarms } = data;
 
         // 1. Create TileMap
         const tileMap = new TileMap(width, height);
@@ -50,21 +52,28 @@ export class BuildingLoader {
             }
         }
 
-        // 6. Set initial visibility (default all hidden)
-        // Then reveal specified zones
-        if (initiallyRevealed) {
-            for (const zoneId of initiallyRevealed) {
-                tileMap.setZoneVisibility(zoneId, GridConfig.VISIBILITY.REVEALED);
-            }
-        }
-
-        // 7. Always reveal VOID tiles (exterior/outside - shouldn't be hidden)
+        // 6. Set initial visibility
+        // NEW APPROACH: Default all to REVEALED, then hide specific zones
+        // This makes corridors and public spaces visible by default
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const tile = tileMap.getTile(x, y);
-                if (tile && tile.type === GridConfig.TILE_TYPE.VOID) {
-                    tile.setVisibility(GridConfig.VISIBILITY.VISIBLE);
+                if (tile) {
+                    // VOID tiles always fully visible
+                    if (tile.type === GridConfig.TILE_TYPE.VOID) {
+                        tile.setVisibility(GridConfig.VISIBILITY.VISIBLE);
+                    } else {
+                        // All other tiles default to REVEALED
+                        tile.setVisibility(GridConfig.VISIBILITY.REVEALED);
+                    }
                 }
+            }
+        }
+
+        // 7. Hide zones that require intel (from hiddenZones array)
+        if (hiddenZones && hiddenZones.length > 0) {
+            for (const zone of hiddenZones) {
+                tileMap.setZoneVisibility(zone.id, GridConfig.VISIBILITY.HIDDEN);
             }
         }
 
@@ -115,6 +124,41 @@ export class BuildingLoader {
         const scoreData = score || null;
         const sideScoreData = sideScores || [];
 
+        // 12. Parse cameras (stub entities)
+        const cameraEntities = [];
+        if (cameras) {
+            for (const camData of cameras) {
+                cameraEntities.push(new Camera({
+                    id: camData.id,
+                    gridX: camData.x,
+                    gridY: camData.y,
+                    label: camData.label,
+                    facing: camData.facing,
+                    fov: camData.fov,
+                    range: camData.range,
+                    rotationSpeed: camData.rotationSpeed,
+                    rotationRange: camData.rotationRange
+                }));
+            }
+        }
+
+        // 13. Parse alarms (stub entities)
+        const alarmEntities = [];
+        if (alarms) {
+            for (const alarmData of alarms) {
+                alarmEntities.push(new Alarm({
+                    id: alarmData.id,
+                    gridX: alarmData.x,
+                    gridY: alarmData.y,
+                    label: alarmData.label,
+                    alarmType: alarmData.alarmType,
+                    triggerRadius: alarmData.triggerRadius,
+                    heatPenalty: alarmData.heatPenalty,
+                    threatPenalty: alarmData.threatPenalty
+                }));
+            }
+        }
+
         return {
             tileMap,
             guards: guardEntities,
@@ -123,7 +167,9 @@ export class BuildingLoader {
             visionCones,
             extractionPoints,
             scoreData,
-            sideScoreData
+            sideScoreData,
+            cameras: cameraEntities,
+            alarms: alarmEntities
         };
     }
 
@@ -186,15 +232,26 @@ export class BuildingLoader {
         }
 
         // Connections (floors/passages to other rooms)
+        // IMPORTANT: Don't overwrite doors with floor tiles
         if (connections) {
             for (const conn of connections) {
                 if (conn.x1 !== undefined && conn.y1 !== undefined) {
-                    // Range connection
-                    tileMap.fillRect(conn.x1, conn.y1, conn.x2, conn.y2, GridConfig.TILE_TYPE.FLOOR);
+                    // Range connection - place floors but skip door tiles
+                    for (let y = conn.y1; y <= conn.y2; y++) {
+                        for (let x = conn.x1; x <= conn.x2; x++) {
+                            const existingTile = tileMap.getTile(x, y);
+                            if (!existingTile || existingTile.type !== GridConfig.TILE_TYPE.DOOR) {
+                                tileMap.setTile(x, y, GridConfig.TILE_TYPE.FLOOR);
+                            }
+                        }
+                    }
                     tileMap.assignZone(zone, conn.x1, conn.y1, conn.x2, conn.y2);
                 } else {
-                    // Single tile
-                    tileMap.setTile(conn.x, conn.y, conn.type === 'DOOR' ? GridConfig.TILE_TYPE.DOOR : GridConfig.TILE_TYPE.FLOOR);
+                    // Single tile - skip if already a door
+                    const existingTile = tileMap.getTile(conn.x, conn.y);
+                    if (!existingTile || existingTile.type !== GridConfig.TILE_TYPE.DOOR) {
+                        tileMap.setTile(conn.x, conn.y, conn.type === 'DOOR' ? GridConfig.TILE_TYPE.DOOR : GridConfig.TILE_TYPE.FLOOR);
+                    }
                 }
             }
         }

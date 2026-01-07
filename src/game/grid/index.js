@@ -25,3 +25,7 @@ export { SkillCheck, SkillCheckResult } from './SkillCheck.js';
 export { LootBag } from './LootBag.js';
 export { ExtractionPoint } from './ExtractionPoint.js';
 export { HeistOutcomeEngine, outcomeEngine } from './HeistOutcomeEngine.js';
+
+// Security Elements (stubs for future implementation)
+export { Camera } from './Camera.js';
+export { Alarm } from './Alarm.js';

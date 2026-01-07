@@ -1,0 +1,32 @@
+{
+    "id": "teller_area",
+    "name": "Teller Area",
+    "category": "bank",
+    "archetypes": [
+        "bank"
+    ],
+    "width": 10,
+    "height": 8,
+    "zone": "lobby",
+    "requiresIntel": false,
+    "doorType": "open",
+    "interactables": [
+        {
+            "type": "COMPUTER",
+            "offsetX": 3,
+            "offsetY": 2,
+            "label": "Teller Terminal",
+            "duration": 3,
+            "dc": 5
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": [],
+    "sideScore": {
+        "name": "Teller Drawer",
+        "value": 500,
+        "offsetX": 6,
+        "offsetY": 2,
+        "duration": 3
+    }
+}

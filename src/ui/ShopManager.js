@@ -1,5 +1,4 @@
 import GameManager from '../game/GameManager';
-import { MapGenerator } from '../game/MapGenerator';
 
 class ShopManager {
     constructor() {

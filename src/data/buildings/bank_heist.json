@@ -379,6 +379,28 @@
             "duration": 5
         }
     ],
+    "hiddenZones": [
+        {
+            "id": "vault",
+            "name": "Vault",
+            "intelCost": 3
+        },
+        {
+            "id": "security",
+            "name": "Security Room",
+            "intelCost": 2
+        },
+        {
+            "id": "office",
+            "name": "Office",
+            "intelCost": 2
+        },
+        {
+            "id": "server",
+            "name": "Server Room",
+            "intelCost": 2
+        }
+    ],
     "extraction": {
         "points": [
             {

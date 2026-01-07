@@ -1,10 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { GameConfig } from './GameConfig';
-import { MapGenerator } from './MapGenerator';
 import { CrewGenerator } from './CrewGenerator';
 import { ItemSystem } from './ItemSystem';
 import { ROSTER_POOL } from '../data/CrewLibrary';
-import { SimulationEngine } from './SimulationEngine';
 
 class EventEmitter {
     constructor() {
@@ -315,17 +313,16 @@ class GameManager {
     }
 
     loadContract(contract) {
-        console.log("Loading Contract:", contract);
-        const difficulty = this.gameState.meta.difficultyModifier;
-        const viewportHeight = window.innerHeight; // safe-ish assumption for now?
+        console.log("[GameManager] Loading Contract:", contract.name, `(${contract.buildingId})`);
 
-        const newMap = MapGenerator.generateStaticLevel(difficulty, viewportHeight, contract.layoutType);
-        this.gameState.map = newMap;
+        // Store contract - renderer will handle map loading via buildingId
         this.gameState.meta.activeContract = contract;
         this.gameState.simulation.status = "PLANNING";
 
-        // Dispatch event so UI updates (MapRenderer will see the map and render it)
-        window.dispatchEvent(new CustomEvent('mapLoaded'));
+        // Dispatch event so renderer loads the building
+        window.dispatchEvent(new CustomEvent('mapLoaded', {
+            detail: { contract }
+        }));
     }
 
     logRunStep(stepData) {

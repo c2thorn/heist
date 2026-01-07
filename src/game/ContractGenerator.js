@@ -1,3 +1,5 @@
+import { getMapForContract } from '../data/buildings/index.js';
+
 export class ContractGenerator {
     static generateDailyContracts(difficulty) {
         return [
@@ -12,16 +14,21 @@ export class ContractGenerator {
         const name = this.generateName(type);
         const rewardMult = this.getRewardMult(type);
 
+        // Get a compatible map from the pool (may be static or generated)
+        const mapData = getMapForContract(type, difficulty);
+
         // Adjust difficulty flavor slightly based on type
         let diffDisplay = difficulty;
         if (type === 'COMPOUND') diffDisplay += 1; // Compound is harder
 
         return {
             id: id,
-            name: name,
+            name: mapData.isStatic ? name : mapData.name,  // Use generated name if procedural
             difficulty: difficulty,
             rewardMult: rewardMult,
             layoutType: type,
+            buildingId: mapData.id,
+            mapData: mapData.isStatic ? null : mapData,  // Store full mapData if generated
             description: this.getDescription(type)
         };
     }

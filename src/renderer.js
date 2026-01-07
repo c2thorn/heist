@@ -7,20 +7,16 @@ import './styles/aar.css';
 import './styles/job-board.css';
 import './styles/setup-phase.css';
 import './styles/heist-summary.css';
-import { MapRenderer } from './ui/map/MapRenderer';
 import { heistSummaryUI } from './ui/HeistSummaryUI';
 import { commandCenterUI } from './ui/CommandCenterUI';
 import { shopManager } from './ui/ShopManager';
 import { setupPhaseUI } from './ui/SetupPhaseUI';
 import GameManager from './game/GameManager';
-import { MapGenerator } from './game/MapGenerator';
-import { SimulationEngine } from './game/SimulationEngine';
 import { JobBoardUI } from './ui/JobBoardUI';
 import { UnitContextMenu } from './ui/UnitContextMenu';
 import './styles/context-menu.css';
 import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel, outcomeEngine } from './game/grid/index.js';
-import bankHeistData from './data/buildings/bank_heist.json';
-import bankHeistArrangements from './data/arrangements/bank_heist_arrangements.json';
+import { getMapById, MAP_POOL } from './data/buildings/index.js';
 
 let unitContextMenu = null;
 
@@ -50,11 +46,7 @@ if (GameManager.gameState.simulation.status === 'SELECTING_CONTRACT') {
   if (actionPanel) actionPanel.style.display = 'none';
 }
 
-// 3. Initialize HTML Map Renderer (legacy node-based)
-const mapRenderer = new MapRenderer();
-mapRenderer.init();
-
-// 4. Initialize Tile Grid Renderer
+// 3. Initialize Tile Grid Renderer
 let gridRenderer = null;
 let tileMap = null;
 let pathfinder = null;
@@ -62,33 +54,15 @@ let testUnit = null;
 let guardVision = null;
 let lastUpdateTime = performance.now();
 
-function initTileGrid() {
-  const canvas = document.getElementById('tile-grid-canvas');
-  const gameMap = document.getElementById('game-map');
-
-  if (!canvas || !gameMap) return;
-
-  // Calculate viewport size from the game-map container
-  const rect = gameMap.getBoundingClientRect();
-
-  // Load building from JSON data
-  const buildingResult = BuildingLoader.load(bankHeistData);
-  tileMap = buildingResult.tileMap;
-
-  // Store in GameManager (primary state)
-  GameManager.tileMap = tileMap;
-  window.tileMap = tileMap; // Mirror for transition
-
-  // Create renderer with viewport matching the map area
-  gridRenderer = new GridRenderer(canvas, tileMap, {
-    viewportWidth: rect.width,
-    viewportHeight: rect.height
-  });
-
-  // Initialize pathfinder
-  pathfinder = new Pathfinder(tileMap);
-  GameManager.pathfinder = pathfinder;
-  window.pathfinder = pathfinder; // Mirror
+/**
+ * Load building entities into the grid renderer (guards, interactables, extraction points)
+ * @param {Object} buildingResult - Result from BuildingLoader.load()
+ */
+function loadBuildingEntities(buildingResult) {
+  // Clear existing entities from renderer
+  if (gridRenderer) {
+    gridRenderer.clearAllEntities();
+  }
 
   // Add guards from building data
   for (const guard of buildingResult.guards) {
@@ -130,6 +104,123 @@ function initTileGrid() {
     gridRenderer.addEntity(exitPoint);
   }
 
+  // Store score data for HeistOutcomeEngine
+  GameManager.scoreData = buildingResult.scoreData;
+  GameManager.sideScoreData = buildingResult.sideScoreData;
+
+  // Add cameras (stub entities)
+  if (buildingResult.cameras) {
+    for (const camera of buildingResult.cameras) {
+      gridRenderer.addEntity(camera);
+    }
+  }
+  GameManager.cameras = buildingResult.cameras || [];
+
+  // Add alarms (stub entities)
+  if (buildingResult.alarms) {
+    for (const alarm of buildingResult.alarms) {
+      gridRenderer.addEntity(alarm);
+    }
+  }
+  GameManager.alarms = buildingResult.alarms || [];
+}
+
+/**
+ * Load a fresh building from the map pool or from generated data
+ * Called when a contract is accepted to reset all map state
+ * @param {string} buildingId - ID of building in MAP_POOL
+ * @param {Object} generatedMapData - Optional: pre-generated map data from contract
+ */
+function loadBuilding(buildingId, generatedMapData = null) {
+  console.log(`[Renderer] Loading building: ${buildingId}`);
+
+  // Use provided mapData (for generated maps) or look up static map
+  let mapData = generatedMapData;
+  if (!mapData) {
+    mapData = getMapById(buildingId);
+  }
+
+  if (!mapData) {
+    console.error(`[Renderer] Building not found: ${buildingId}`);
+    return;
+  }
+
+  // Load fresh building data
+  const buildingResult = BuildingLoader.load(mapData.building);
+  tileMap = buildingResult.tileMap;
+
+  // Update GameManager state
+  GameManager.tileMap = tileMap;
+  window.tileMap = tileMap;
+
+  // Update pathfinder with new tileMap
+  pathfinder = new Pathfinder(tileMap);
+  GameManager.pathfinder = pathfinder;
+  window.pathfinder = pathfinder;
+
+  // Update grid renderer's tileMap
+  if (gridRenderer) {
+    gridRenderer.setTileMap(tileMap);
+  }
+
+  // Update SectorManager's tileMap reference and initialize hidden zones
+  if (window.sectorManager) {
+    window.sectorManager.tileMap = tileMap;
+    // Initialize sectors from hiddenZones (only secure rooms need intel)
+    const hiddenZones = mapData.building.hiddenZones || [];
+    window.sectorManager.initFromHiddenZones(hiddenZones);
+  }
+
+  // Load fresh entities
+  loadBuildingEntities(buildingResult);
+
+  // Load arrangements for this building (if present)
+  arrangementEngine.reset();
+  if (mapData.arrangements) {
+    arrangementEngine.loadFromData(mapData.arrangements);
+  }
+
+  // Update radio controller exit point
+  const defaultExit = buildingResult.extractionPoints?.find(p => p.isDefault)
+    || buildingResult.extractionPoints?.[0]
+    || { x: 15, y: 28 };
+  radioController.setExitTile({ x: defaultExit.gridX || defaultExit.x, y: defaultExit.gridY || defaultExit.y });
+
+  console.log(`[Renderer] Building loaded: ${mapData.name} (${mapData.isStatic ? 'static' : 'generated'})`);
+}
+
+function initTileGrid() {
+  const canvas = document.getElementById('tile-grid-canvas');
+  const gameMap = document.getElementById('game-map');
+
+  if (!canvas || !gameMap) return;
+
+  // Calculate viewport size from the game-map container
+  const rect = gameMap.getBoundingClientRect();
+
+  // Load initial building from pool (default to bank_heist)
+  const defaultMap = MAP_POOL.bank_heist;
+  const buildingResult = BuildingLoader.load(defaultMap.building);
+  tileMap = buildingResult.tileMap;
+
+  // Store in GameManager (primary state)
+  GameManager.tileMap = tileMap;
+  window.tileMap = tileMap; // Mirror for transition
+
+  // Create renderer with viewport matching the map area
+  gridRenderer = new GridRenderer(canvas, tileMap, {
+    viewportWidth: rect.width,
+    viewportHeight: rect.height
+  });
+
+  // Initialize pathfinder
+  pathfinder = new Pathfinder(tileMap);
+  GameManager.pathfinder = pathfinder;
+  window.pathfinder = pathfinder; // Mirror
+
+  // Add initial building entities
+  loadBuildingEntities(buildingResult);
+
   // Initialize Heist Outcome Engine
   window.outcomeEngine = outcomeEngine;
   GameManager.outcomeEngine = outcomeEngine;
@@ -139,7 +230,6 @@ function initTileGrid() {
 
   // Initialize Radio Controller with units and exit point
   radioController.registerUnits([]);
-  // Use default extraction point if available
   const defaultExit = buildingResult.extractionPoints?.find(p => p.isDefault)
     || buildingResult.extractionPoints?.[0]
     || { x: 15, y: 28 };
@@ -156,19 +246,10 @@ function initTileGrid() {
   sectorManager.defineSector('server', { intelCost: 3, difficulty: 3 });
   sectorManager.defineSector('vault', { intelCost: 4, difficulty: 4 });
   sectorManager.defineSector('exterior', { intelCost: 1, difficulty: 0 });
-
-  // Reveal initial sectors from building data
-  if (bankHeistData.initiallyRevealed) {
-    for (const zoneId of bankHeistData.initiallyRevealed) {
-      sectorManager.purchaseIntel(zoneId);
-    }
-  }
   GameManager.sectorManager = sectorManager;
   window.sectorManager = sectorManager; // Mirror
 
-  // Initialize Arrangement Engine with sample assets
-  // Load arrangements from JSON data file
-  arrangementEngine.loadFromData(bankHeistArrangements);
+  // Initialize Arrangement Engine (will be loaded per-building)
   window.arrangementEngine = arrangementEngine;
 
   // Initialize heist phase state (PLANNING until player clicks EXECUTE HEIST)
@@ -176,35 +257,7 @@ function initTileGrid() {
   window.heistPhase = GameManager.heistPhase; // Mirror
   threatClock.pause();  // Clock paused during planning
 
-  // Listen for map load (from Job Board)
-  window.addEventListener('mapLoaded', () => {
-    console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
-    GameManager.heistPhase = 'PLANNING';
-    window.heistPhase = GameManager.heistPhase;
-
-    // Reset ThreatClock for fresh heist (reset starts paused)
-    threatClock.reset();
-
-    // Reset/Setup Managers
-    sectorManager.reset();
-    sectorManager.setIntel(GameManager.gameState.meta.intel || 10);
-    arrangementEngine.reset();
-    arrangementEngine.setCash(GameManager.gameState.meta.cash || 1000);
-
-    // Reveal lobby and exterior for context
-    sectorManager.purchaseIntel('lobby');
-    sectorManager.purchaseIntel('exterior');
-
-    // Center camera on the lobby/entry (approx 16, 25)
-    if (window.gridRenderer) {
-      const ts = GridConfig.TILE_SIZE;
-      window.gridRenderer.camera.x = 16 * ts - window.gridRenderer.camera.width / 2;
-      window.gridRenderer.camera.y = 25 * ts - window.gridRenderer.camera.height / 2;
-    }
-
-    // Show Setup UI
-    setupPhaseUI.show();
-  });
+  // NOTE: mapLoaded event is handled later in the file (consolidating handlers)
 
   // Listen for heist start
   window.addEventListener('startHeist', () => {
@@ -212,6 +265,53 @@ function initTileGrid() {
     window.heistPhase = GameManager.heistPhase;
     threatClock.resume();
     console.log('[Heist] EXECUTION PHASE STARTED!');
+  });
+
+  // Listen for sector icon (magnifying glass) clicks - purchase intel
+  window.addEventListener('sectorIconClicked', (e) => {
+    const { sectorId } = e.detail;
+    console.log(`[Renderer] Sector icon clicked: ${sectorId}`);
+
+    if (!window.sectorManager) {
+      console.error('[Renderer] SectorManager not available');
+      return;
+    }
+
+    const sector = window.sectorManager.getSector(sectorId);
+    if (!sector) {
+      console.warn(`[Renderer] Sector not found: ${sectorId}`);
+      return;
+    }
+
+    if (sector.state === 'HIDDEN') {
+      if (window.sectorManager.getIntel() >= sector.intelCost) {
+        window.sectorManager.purchaseIntel(sectorId);
+        console.log(`[Renderer] Revealed sector: ${sector.name}`);
+      } else {
+        console.log(`[Renderer] Not enough intel! Need ${sector.intelCost}, have ${window.sectorManager.getIntel()}`);
+      }
+    }
+  });
+
+  // Listen for unit clicks (crew member selection)
+  window.addEventListener('unitClicked', (e) => {
+    const { unit } = e.detail;
+    console.log(`[Renderer] Unit clicked: ${unit.id}`);
+
+    // Select the unit
+    window.selectedUnit = unit;
+
+    // Show task queue via UnitContextMenu (uses setUnit which handles show + positioning)
+    if (unitContextMenu) {
+      unitContextMenu.setUnit(unit);
+    }
+  });
+
+  // Listen for interactable clicks (show related info if needed)
+  window.addEventListener('interactableClicked', (e) => {
+    const { interactable } = e.detail;
+    console.log(`[Renderer] Interactable clicked: ${interactable.id}`);
+    // Currently just logs - could expand to show info panel
   });
 
   // Start render loop
@@ -339,22 +439,9 @@ window.addEventListener('tileClicked', async (e) => {
       return; // Stop processing
     }
 
-    // 2. Check for Hidden Sector (Blueprint)
-    const clickedTile = tileMap.getTile(tile.x, tile.y);
-    if (clickedTile && clickedTile.zoneId) {
-      const sector = window.sectorManager?.getSector(clickedTile.zoneId);
-      // Only interact if hidden
-      if (sector && sector.state === 'HIDDEN') {
-        // Buy intel
-        if (window.sectorManager.getIntel() >= sector.intelCost) {
-          window.sectorManager.purchaseIntel(sector.id);
-          console.log(`Revealed sector: ${sector.name}`);
-        } else {
-          console.log('Not enough intel!');
-        }
-        return; // Stop processing
-      }
-    }
+    // 2. Hidden sectors are revealed ONLY via magnifying glass overlay
+    // (handled by GridRenderer overlay click, not tile click)
+    // Clicking on hidden tiles does nothing - must use the magnifying glass
 
     // 3. LEGACY TILE CLICK → GOAL CREATION REMOVED
     // Goals are now added via the UnitContextMenu objective palette only.
@@ -456,8 +543,8 @@ const views = {
 };
 
 function switchView(viewKey) {
-  // Prevent switching during simulation
-  if (SimulationEngine.isRunning) return;
+  // Prevent switching during heist execution
+  if (GameManager.heistPhase === 'EXECUTING') return;
 
   // Update Buttons
   Object.keys(views).forEach(key => {
@@ -629,19 +716,28 @@ window.addEventListener('startHeist', () => {
 });
 
 // Update mapLoaded to spawn crew immediately
-window.addEventListener('mapLoaded', () => {
-  // ... items from previous mapLoaded ...
+window.addEventListener('mapLoaded', (e) => {
   console.log('[Heist] MAP LOADED - ENTERING SETUP PHASE');
+
+  // Load fresh building from contract (may be static or generated)
+  const contract = e.detail?.contract || GameManager.gameState.meta.activeContract;
+  if (contract?.buildingId) {
+    // Pass mapData if this was a generated map (stored in contract)
+    loadBuilding(contract.buildingId, contract.mapData || null);
+  }
+
   GameManager.heistPhase = 'PLANNING';
   window.heistPhase = GameManager.heistPhase;
 
+  // Reset ThreatClock for fresh heist
+  threatClock.reset();
+
   sectorManager.reset();
   sectorManager.setIntel(GameManager.gameState.meta.intel || 10);
-  arrangementEngine.reset();
   arrangementEngine.setCash(GameManager.gameState.meta.cash || 1000);
 
-  sectorManager.purchaseIntel('lobby');
-  sectorManager.purchaseIntel('exterior');
+  // Note: lobby/exterior are now revealed by default in new intel system
+  // SectorManager.initFromHiddenZones is called in loadBuilding()
 
   // Initialize specific UI components
   if (!unitContextMenu) {

@@ -1,0 +1,69 @@
+{
+    "id": "bank",
+    "name": "Bank",
+    "difficulty": 2,
+    "minRooms": 4,
+    "maxRooms": 7,
+    "requiredRooms": [
+        "entrance",
+        "vault_small"
+    ],
+    "optionalRooms": [
+        "office",
+        "security_room",
+        "teller_area",
+        "hallway_hub"
+    ],
+    "minGuards": 1,
+    "maxGuards": 2,
+    "minCameras": 0,
+    "maxCameras": 2,
+    "scoreRange": [
+        5000,
+        15000
+    ],
+    "sideScoreRange": [
+        500,
+        2000
+    ],
+    "flavorNames": [
+        "Metro Credit Union",
+        "First National Bank",
+        "Central Savings",
+        "Union Trust",
+        "City Bank & Trust",
+        "Commonwealth Bank"
+    ],
+    "zones": [
+        {
+            "id": "exterior",
+            "name": "Exterior",
+            "color": "#0d1117"
+        },
+        {
+            "id": "lobby",
+            "name": "Lobby",
+            "color": "#2c3e50"
+        },
+        {
+            "id": "hallway",
+            "name": "Hallway",
+            "color": "#34495e"
+        },
+        {
+            "id": "office",
+            "name": "Office",
+            "color": "#3d5a80"
+        },
+        {
+            "id": "security",
+            "name": "Security Room",
+            "color": "#7c2d12"
+        },
+        {
+            "id": "vault",
+            "name": "Vault",
+            "color": "#1a365d"
+        }
+    ]
+}

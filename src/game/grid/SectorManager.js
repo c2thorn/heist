@@ -29,6 +29,42 @@ export class SectorManager {
     }
 
     /**
+     * Initialize sectors from hiddenZones array (for generated maps)
+     * Only creates sectors for zones that require intel to reveal
+     * @param {Object[]} hiddenZones - Array of { id, name, intelCost }
+     */
+    initFromHiddenZones(hiddenZones) {
+        // Clear existing sectors
+        this.sectors.clear();
+
+        if (!hiddenZones || hiddenZones.length === 0) {
+            console.log('[SectorManager] No hidden zones - all areas visible');
+            return;
+        }
+
+        for (const zone of hiddenZones) {
+            const tileMapZone = this.tileMap.getZone(zone.id);
+            if (!tileMapZone) {
+                console.warn(`[SectorManager] Zone not found in tileMap: ${zone.id}`);
+                continue;
+            }
+
+            this.sectors.set(zone.id, {
+                id: zone.id,
+                name: zone.name || tileMapZone.name,
+                intelCost: zone.intelCost || 2,
+                difficulty: 1,
+                state: SectorState.HIDDEN,
+                arrangements: []
+            });
+
+            console.log(`[SectorManager] Sector defined: ${zone.id} (cost: ${zone.intelCost})`);
+        }
+
+        console.log(`[SectorManager] Initialized ${this.sectors.size} purchasable sectors`);
+    }
+
+    /**
      * Define a sector with intel cost
      * @param {string} sectorId - Unique sector identifier (matches zone id)
      * @param {Object} config - Sector configuration
@@ -106,11 +142,13 @@ export class SectorManager {
     /**
      * Check if a sector is revealed
      * @param {string} sectorId - Sector to check
-     * @returns {boolean} True if revealed
+     * @returns {boolean} True if revealed (or not in hidden zones)
      */
     isSectorRevealed(sectorId) {
         const sector = this.sectors.get(sectorId);
-        return sector ? sector.state !== SectorState.HIDDEN : false;
+        // If sector is not in our map, it's not a hidden zone → revealed by default
+        if (!sector) return true;
+        return sector.state !== SectorState.HIDDEN;
     }
 
     /**

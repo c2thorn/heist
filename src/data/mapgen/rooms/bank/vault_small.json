@@ -1,0 +1,38 @@
+{
+    "id": "vault_small",
+    "name": "Small Vault",
+    "category": "bank",
+    "archetypes": [
+        "bank",
+        "casino"
+    ],
+    "width": 8,
+    "height": 8,
+    "zone": "vault",
+    "requiresIntel": true,
+    "intelCost": 3,
+    "doorType": "locked",
+    "unlockDuration": 10.0,
+    "interactables": [
+        {
+            "type": "SAFE",
+            "offsetX": 4,
+            "offsetY": 3,
+            "label": "Main Safe",
+            "duration": 6,
+            "dc": 10,
+            "isScore": true
+        }
+    ],
+    "guardSpawns": [],
+    "crewSpawns": [],
+    "cameras": [
+        {
+            "offsetX": 1,
+            "offsetY": 1,
+            "facing": 135,
+            "fov": 60,
+            "range": 4
+        }
+    ]
+}

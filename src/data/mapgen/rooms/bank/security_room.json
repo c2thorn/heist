@@ -1,0 +1,42 @@
+{
+    "id": "security_room",
+    "name": "Security Room",
+    "category": "bank",
+    "archetypes": [
+        "bank",
+        "casino",
+        "museum",
+        "corporate"
+    ],
+    "width": 8,
+    "height": 8,
+    "zone": "security",
+    "requiresIntel": true,
+    "intelCost": 2,
+    "doorType": "door",
+    "interactables": [
+        {
+            "type": "PANEL",
+            "offsetX": 4,
+            "offsetY": 2,
+            "label": "Security Panel",
+            "duration": 4,
+            "dc": 8
+        },
+        {
+            "type": "COMPUTER",
+            "offsetX": 5,
+            "offsetY": 2,
+            "label": "Surveillance Terminal",
+            "duration": 3,
+            "dc": 6
+        }
+    ],
+    "guardSpawns": [
+        {
+            "offsetX": 4,
+            "offsetY": 4
+        }
+    ],
+    "crewSpawns": []
+}

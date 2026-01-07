@@ -51,12 +51,18 @@ export class GoalDiscoveryService {
      */
     static getInteractableTargets() {
         const targets = [];
-        if (!window.gridRenderer) return targets;
+        if (!window.gridRenderer) {
+            console.warn('[GoalDiscovery] No gridRenderer found');
+            return targets;
+        }
 
         const interactables = window.gridRenderer.interactables || [];
+        console.log(`[GoalDiscovery] Found ${interactables.length} interactables`);
+
         interactables.forEach(item => {
             // Check if position is in a revealed sector
             const isVisible = this.isPositionRevealed(item.gridX, item.gridY);
+            console.log(`[GoalDiscovery] ${item.id} at (${item.gridX}, ${item.gridY}) - visible: ${isVisible}`);
             if (isVisible) {
                 targets.push({
                     id: item.id,
@@ -67,6 +73,7 @@ export class GoalDiscoveryService {
             }
         });
 
+        console.log(`[GoalDiscovery] Returning ${targets.length} targets`);
         return targets;
     }
 

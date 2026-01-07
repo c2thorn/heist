@@ -1,0 +1,32 @@
+{
+    "id": "entrance",
+    "name": "Entrance Lobby",
+    "category": "global",
+    "archetypes": [
+        "*"
+    ],
+    "width": 8,
+    "height": 8,
+    "zone": "lobby",
+    "requiresIntel": false,
+    "doorType": "open",
+    "hasEntryPoint": true,
+    "interactables": [],
+    "guardSpawns": [],
+    "crewSpawns": [
+        {
+            "offsetX": 3,
+            "offsetY": 5,
+            "default": true
+        },
+        {
+            "offsetX": 4,
+            "offsetY": 5
+        }
+    ],
+    "extraction": {
+        "offsetX": 3,
+        "offsetY": 6,
+        "isDefault": true
+    }
+}

@@ -1,0 +1,28 @@
+{
+    "id": "hallway_straight",
+    "name": "Hallway (Straight)",
+    "category": "global",
+    "archetypes": [
+        "*"
+    ],
+    "width": 4,
+    "height": 8,
+    "zone": "hallway",
+    "connections": [
+        {
+            "side": "south",
+            "offset": 1,
+            "width": 2,
+            "type": "open"
+        },
+        {
+            "side": "north",
+            "offset": 1,
+            "width": 2,
+            "type": "open"
+        }
+    ],
+    "interactables": [],
+    "guardSpawns": [],
+    "crewSpawns": []
+}
