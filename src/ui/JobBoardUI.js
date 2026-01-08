@@ -90,8 +90,20 @@ export class JobBoardUI {
         this.hide();
     }
 
+    /**
+     * Show the job board (renders if not already rendered)
+     */
+    show() {
+        if (this.element) {
+            // Already rendered, just make visible
+            this.element.style.display = 'block';
+        } else {
+            // First time, need to render
+            this.render();
+        }
+    }
+
     hide() {
-        if (this.element) this.element.remove();
-        this.element = null;
+        if (this.element) this.element.style.display = 'none';
     }
 }

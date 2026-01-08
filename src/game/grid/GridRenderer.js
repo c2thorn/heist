@@ -811,7 +811,7 @@ export class GridRenderer {
     _renderVisionCones() {
         const ctx = this.ctx;
 
-        // 1. PLANNING CHECK
+        // Skip during planning phase
         if (window.heistPhase === 'PLANNING') return;
 
         for (const { cone, color, alertColor } of this.visionCones) {
@@ -820,11 +820,15 @@ export class GridRenderer {
             // This is a bit tricky as cone doesn't explicitly link back to unit ID in this list, 
             // but we can check the cone's origin position against the map visibility.
 
-            const originGrid = this.tileMap.worldToGrid(cone.x, cone.y);
+            const originGrid = this.tileMap.worldToGrid(cone.origin.x, cone.origin.y);
             const tile = this.tileMap.getTile(originGrid.x, originGrid.y);
 
-            // Only show cone if origin tile is fully VISIBLE (not hidden or just revealed)
-            if (!tile || tile.visibility !== GridConfig.VISIBILITY.VISIBLE) {
+            // Show cone if origin tile is VISIBLE or REVEALED (intel purchased)
+            const isVisible = tile && (
+                tile.visibility === GridConfig.VISIBILITY.VISIBLE ||
+                tile.visibility === GridConfig.VISIBILITY.REVEALED
+            );
+            if (!isVisible) {
                 continue;
             }
 

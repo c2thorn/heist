@@ -17,6 +17,10 @@ import './styles/context-menu.css';
 import { GridRenderer, BuildingLoader, Pathfinder, Unit, VisionCone, GridConfig, Task, signalBus, threatClock, radioController, SectorManager, arrangementEngine, Safe, Computer, SecurityPanel, outcomeEngine } from './game/grid/index.js';
 import { getMapById, MAP_POOL } from './data/buildings/index.js';
 import { debugLog } from './game/DebugConfig.js';
+import { initViewManager, switchView, switchDeckTab, getViews } from './app/ViewManager.js';
+import { initHUDController, updateGlobalHeat } from './app/HUDController.js';
+import { initCrewSpawner, spawnActiveCrew } from './app/CrewSpawner.js';
+import { initBuildingSetup, loadBuilding, loadBuildingEntities, getGuardVision } from './app/BuildingSetup.js';
 
 let unitContextMenu = null;
 
@@ -36,6 +40,14 @@ shopManager.init();
 GameManager.refreshShop(); // Initial shop generation
 const jobBoardUI = new JobBoardUI('game-map'); // Overlay on game map
 
+// Initialize ViewManager with dependencies
+initViewManager({ jobBoardUI });
+
+// Initialize HUD displays
+initHUDController();
+
+// Initialize crew spawner
+initCrewSpawner();
 // Force initial render of Job Board if status matches
 if (GameManager.gameState.simulation.status === 'SELECTING_CONTRACT') {
   jobBoardUI.render();
@@ -46,148 +58,16 @@ if (GameManager.gameState.simulation.status === 'SELECTING_CONTRACT') {
   if (actionPanel) actionPanel.style.display = 'none';
 }
 
+
 // 3. Initialize Tile Grid Renderer
 let gridRenderer = null;
 let tileMap = null;
 let pathfinder = null;
 let testUnit = null;
-let guardVision = null;
 let lastUpdateTime = performance.now();
 
-/**
- * Load building entities into the grid renderer (guards, interactables, extraction points)
- * @param {Object} buildingResult - Result from BuildingLoader.load()
- */
-function loadBuildingEntities(buildingResult) {
-  // Clear existing entities from renderer
-  if (gridRenderer) {
-    gridRenderer.clearAllEntities();
-  }
-
-  // Add guards from building data
-  for (const guard of buildingResult.guards) {
-    gridRenderer.addUnit(guard);
-  }
-
-  // Add vision cones from building data
-  for (const cone of buildingResult.visionCones) {
-    gridRenderer.addVisionCone(cone);
-    guardVision = cone; // Store for animation loop
-  }
-
-  // Store guard reference for animation (first guard or null)
-  window.testGuard = buildingResult.guards[0] || null;
-
-  // Initialize empty units list for Heist Start
-  GameManager.units = [];
-  GameManager.selectedUnit = null;
-  window.allUnits = GameManager.units; // Mirror
-  window.selectedUnit = null; // Mirror
-
-  // Expose Task and signalBus for console testing
-  window.Task = Task;
-  window.signalBus = signalBus;
-
-  // Add interactables from building data
-  for (const interactable of buildingResult.interactables) {
-    gridRenderer.addInteractable(interactable);
-  }
-
-  // Store crew spawn points
-  GameManager.crewSpawns = buildingResult.crewSpawns;
-  window.crewSpawns = GameManager.crewSpawns; // Mirror
-
-  // Add extraction points from building data
-  GameManager.extractionPoints = buildingResult.extractionPoints || [];
-  window.extractionPoints = GameManager.extractionPoints;
-  for (const exitPoint of GameManager.extractionPoints) {
-    gridRenderer.addEntity(exitPoint);
-  }
-
-  // Store score data for HeistOutcomeEngine
-  GameManager.scoreData = buildingResult.scoreData;
-  GameManager.sideScoreData = buildingResult.sideScoreData;
-
-  // Add cameras (stub entities)
-  if (buildingResult.cameras) {
-    for (const camera of buildingResult.cameras) {
-      gridRenderer.addEntity(camera);
-    }
-  }
-  GameManager.cameras = buildingResult.cameras || [];
-
-  // Add alarms (stub entities)
-  if (buildingResult.alarms) {
-    for (const alarm of buildingResult.alarms) {
-      gridRenderer.addEntity(alarm);
-    }
-  }
-  GameManager.alarms = buildingResult.alarms || [];
-}
-
-/**
- * Load a fresh building from the map pool or from generated data
- * Called when a contract is accepted to reset all map state
- * @param {string} buildingId - ID of building in MAP_POOL
- * @param {Object} generatedMapData - Optional: pre-generated map data from contract
- */
-function loadBuilding(buildingId, generatedMapData = null) {
-  console.log(`[Renderer] Loading building: ${buildingId}`);
-
-  // Use provided mapData (for generated maps) or look up static map
-  let mapData = generatedMapData;
-  if (!mapData) {
-    mapData = getMapById(buildingId);
-  }
-
-  if (!mapData) {
-    console.error(`[Renderer] Building not found: ${buildingId}`);
-    return;
-  }
-
-  // Load fresh building data
-  const buildingResult = BuildingLoader.load(mapData.building);
-  tileMap = buildingResult.tileMap;
-
-  // Update GameManager state
-  GameManager.tileMap = tileMap;
-  window.tileMap = tileMap;
-
-  // Update pathfinder with new tileMap
-  pathfinder = new Pathfinder(tileMap);
-  GameManager.pathfinder = pathfinder;
-  window.pathfinder = pathfinder;
-
-  // Update grid renderer's tileMap
-  if (gridRenderer) {
-    gridRenderer.setTileMap(tileMap);
-  }
-
-  // Update SectorManager's tileMap reference and initialize hidden zones
-  if (window.sectorManager) {
-    window.sectorManager.tileMap = tileMap;
-    // Initialize sectors from hiddenZones (only secure rooms need intel)
-    const hiddenZones = mapData.building.hiddenZones || [];
-    window.sectorManager.initFromHiddenZones(hiddenZones);
-  }
-
-  // Load fresh entities
-  loadBuildingEntities(buildingResult);
-
-  // Load arrangements for this building (if present)
-  arrangementEngine.reset();
-  if (mapData.arrangements) {
-    arrangementEngine.loadFromData(mapData.arrangements);
-  }
-
-  // Update radio controller exit point
-  const defaultExit = buildingResult.extractionPoints?.find(p => p.isDefault)
-    || buildingResult.extractionPoints?.[0]
-    || { x: 15, y: 28 };
-  radioController.setExitTile({ x: defaultExit.gridX || defaultExit.x, y: defaultExit.gridY || defaultExit.y });
-
-  console.log(`[Renderer] Building loaded: ${mapData.name} (${mapData.isStatic ? 'static' : 'generated'})`);
-}
+// Building loading moved to src/app/BuildingSetup.js
+// Uses: loadBuilding(), loadBuildingEntities(), initBuildingSetup(), getGuardVision()
 
 function initTileGrid() {
   const canvas = document.getElementById('tile-grid-canvas');
@@ -218,7 +98,10 @@ function initTileGrid() {
   GameManager.pathfinder = pathfinder;
   window.pathfinder = pathfinder; // Mirror
 
-  // Add initial building entities
+  // Initialize BuildingSetup with gridRenderer reference
+  initBuildingSetup({ gridRenderer });
+
+  // Load initial building entities
   loadBuildingEntities(buildingResult);
 
   // Initialize Heist Outcome Engine
@@ -319,6 +202,7 @@ function initTileGrid() {
 
   // Start vision/detection update loop (for guard AI, NOT unit movement)
   setInterval(() => {
+    const guardVision = getGuardVision();
     if (!guardVision || !window.allUnits) return;
 
     // Always track time to prevent deltaTime jumps
@@ -530,143 +414,11 @@ window.addEventListener('resize', () => {
 // Initialize grid after DOM is ready
 setTimeout(initTileGrid, 100);
 
-// 4. View Management Logic
-const views = {
-  map: {
-    btn: document.getElementById('btn-view-map'),
-    elements: ['hud-center', 'action-panel'] // Removed hud-top
-  },
-  shop: {
-    btn: document.getElementById('btn-view-shop'),
-    elements: ['shop-screen']
-  }
-};
+// View Management moved to src/app/ViewManager.js
+// Uses: switchView(), switchDeckTab(), getViews()
 
-function switchView(viewKey) {
-  // Prevent switching during heist execution
-  if (GameManager.heistPhase === 'EXECUTING') return;
-
-  // Update Buttons
-  Object.keys(views).forEach(key => {
-    if (key === viewKey) views[key].btn.classList.add('active');
-    else views[key].btn.classList.remove('active');
-
-    // Toggle Elements
-    views[key].elements.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        if (key === viewKey) {
-          // Special handling for MAP view vs JOB BOARD
-          // Show job board when no contract is selected
-          const hasActiveContract = GameManager.gameState.simulation.status !== 'SELECTING_CONTRACT';
-
-          if (key === 'map' && !hasActiveContract) {
-            // No contract selected - show Job Board
-            jobBoardUI.render();
-            el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'none' : 'flex';
-          } else {
-            el.style.display = (id === 'hud-center' || id === 'action-panel') ? 'flex' : 'block';
-            if (key === 'map') jobBoardUI.hide();
-          }
-        } else {
-          el.style.display = 'none';
-        }
-      }
-    });
-  });
-
-  if (viewKey === 'shop') {
-    shopManager.updateUI();
-    jobBoardUI.hide();
-  }
-}
-
-views.map.btn.addEventListener('click', () => {
-  if (!views.map.btn.disabled) switchView('map');
-});
-views.shop.btn.addEventListener('click', () => {
-  if (!views.shop.btn.disabled) switchView('shop');
-});
-
-// ...
-
-window.addEventListener('nextDayStarted', () => {
-  // Switch to Map view default interaction when day starts
-  // But since map is null, it will show Job Board.
-  switchView('map');
-});
-
-// --- SPAWN LOGIC ---
-function spawnActiveCrew() {
-  const activeCrew = GameManager.gameState.crew.activeStack;
-  console.log('Spawning/Updating Roster:', activeCrew);
-
-  // Clear existing units
-  if (GameManager.units.length > 0) {
-    GameManager.units.forEach(u => window.gridRenderer.removeUnit(u.id));
-    GameManager.units.length = 0;  // Clear without breaking window.allUnits reference
-  }
-
-  // Entry Point - Find a walkable tile near intended spawn
-  let entryX = 15;
-  let entryY = 26; // Try a bit higher up
-
-  // Search for a walkable tile if the default isn't walkable
-  const findWalkableSpawn = (startX, startY) => {
-    // Check in a small spiral around the target
-    const offsets = [
-      [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
-      [1, 1], [-1, 1], [1, -1], [-1, -1],
-      [2, 0], [-2, 0], [0, 2], [0, -2]
-    ];
-    for (const [dx, dy] of offsets) {
-      const tile = GameManager.tileMap.getTile(startX + dx, startY + dy);
-      if (tile && tile.isWalkable) {
-        return { x: startX + dx, y: startY + dy };
-      }
-    }
-    return { x: startX, y: startY }; // Fallback
-  };
-
-  const spawn = findWalkableSpawn(entryX, entryY);
-  debugLog('spawn', `Found walkable entry at (${spawn.x}, ${spawn.y})`);
-
-  activeCrew.forEach((member, index) => {
-    // Stagger spawn positions
-    const x = spawn.x + (index % 2);
-    const y = spawn.y + Math.floor(index / 2);
-
-    const unit = new Unit(member.id, x, y, GameManager.tileMap);
-    unit.color = '#00ff88'; // Default crew color
-
-    // Assign Role Colors
-    const s = member.stats;
-    if (s.force >= s.tech && s.force >= s.stealth) unit.color = '#ff4444';
-    else if (s.tech >= s.force && s.tech >= s.stealth) unit.color = '#0088ff';
-    else unit.color = '#00ff88';
-
-    GameManager.gridRenderer.addUnit(unit);
-    unit.setPathfinder(GameManager.pathfinder);
-    unit.isFriendly = true;
-
-    GameManager.units.push(unit);
-  });
-
-  // Defaults
-  if (window.allUnits.length > 0) {
-    window.selectedUnit = window.allUnits[0];
-    window.planningUnitId = window.selectedUnit.id; // Sync planner selection
-    setupPhaseUI.refresh();
-  }
-}
-
-// Listen for Roster Changes during Planning
-GameManager.events.on('crew-updated', () => {
-  console.log('[Renderer] Crew Updated Event received. Phase:', window.heistPhase);
-  if (window.heistPhase === 'PLANNING') {
-    spawnActiveCrew();
-  }
-});
+// Crew Spawner moved to src/app/CrewSpawner.js
+// Uses: spawnActiveCrew(), initCrewSpawner()
 
 window.addEventListener('startHeist', () => {
   console.log('--- EXECUTION STARTED ---');
@@ -707,6 +459,7 @@ window.addEventListener('startHeist', () => {
   }
 
   // Lock View Tabs during heist
+  const views = getViews();
   views.map.btn.disabled = true;
   views.shop.btn.disabled = true;
 });
@@ -836,24 +589,7 @@ window.addEventListener('mapLoaded', (e) => {
 
 });
 
-
-// --- DECK TAB MANAGEMENT ---
-function switchDeckTab(tabName) {
-  // 1. Update Tabs
-  document.querySelectorAll('.deck-tab').forEach(t => t.classList.remove('active'));
-  const activeTab = document.getElementById(`tab-${tabName}`);
-  if (activeTab) activeTab.classList.add('active');
-
-  // 2. Update Pages
-  document.querySelectorAll('.deck-page').forEach(p => p.classList.remove('active'));
-  const activePage = document.getElementById(`deck-page-${tabName}`);
-  if (activePage) activePage.classList.add('active');
-}
-
-// Bind Tab Clicks
-document.getElementById('tab-roster')?.addEventListener('click', () => switchDeckTab('roster'));
-document.getElementById('tab-planning')?.addEventListener('click', () => switchDeckTab('planning'));
-
+// Deck Tab Management moved to src/app/ViewManager.js
 
 window.addEventListener('heistEventLog', () => {
   // Optional: Auto-switch to map if urgent?
@@ -861,10 +597,6 @@ window.addEventListener('heistEventLog', () => {
 
 // Old AAR screen logic removed - heistFinished event was never dispatched
 // New flow uses HeistSummaryUI and heistSummaryClosed event
-
-window.addEventListener('heatLaundered', () => updateGlobalHeat());
-window.addEventListener('heistEventLog', () => updateGlobalHeat()); // Live updates during heist
-window.addEventListener('heatChanged', () => updateGlobalHeat());   // Heat from zones, captures, alarms
 
 // Handle new heist summary flow (HeistOutcomeEngine → HeistSummaryUI)
 window.addEventListener('heistSummaryClosed', () => {
@@ -878,6 +610,7 @@ window.addEventListener('heistSummaryClosed', () => {
   }
 
   // Unlock navigation
+  const views = getViews();
   views.map.btn.disabled = false;
   views.shop.btn.disabled = false;
 
@@ -893,73 +626,4 @@ window.addEventListener('heistSummaryClosed', () => {
   jobBoardUI.render();
 });
 
-function updateGlobalHeat() {
-  const heat = Math.min(100, Math.max(0, GameManager.gameState.resources.heat));
-  const fill = document.getElementById('heat-bar-fill');
-  const label = document.getElementById('heat-label');
-
-  if (fill) {
-    fill.style.width = `${heat}%`;
-
-    // Dynamic Color Interpolation: Blue (0, 0, 255) -> Red (255, 0, 0)
-    // We can use HSL for cleaner transition: Blue(240) -> Red(0)
-    // But direct RGB interpolation might feel more "heat" like (purple middle state)
-    // Let's go with a custom gradient: Blue -> Purple -> Red -> Fire
-
-    let color = '';
-
-    if (heat < 50) {
-      // Cool Blue to Purple
-      // 0% -> rgb(0, 100, 255)
-      // 50% -> rgb(200, 0, 200)
-      const ratio = heat / 50;
-      const r = Math.floor(0 + 200 * ratio);
-      const g = Math.floor(100 * (1 - ratio));
-      const b = Math.floor(255 * (1 - ratio * 0.2));
-      color = `rgb(${r}, ${g}, ${b})`;
-    } else {
-      // Purple to Hot Red
-      // 50% -> rgb(200, 0, 200)
-      // 100% -> rgb(255, 50, 0)
-      const ratio = (heat - 50) / 50;
-      const r = Math.floor(200 + 55 * ratio);
-      const g = Math.floor(50 * ratio);
-      const b = Math.floor(200 * (1 - ratio));
-      color = `rgb(${r}, ${g}, ${b})`;
-    }
-
-    fill.style.backgroundColor = color;
-
-    // Use CSS classes for the pulsing/glow animation effects
-    fill.className = '';
-    if (heat >= 80) fill.classList.add('high-heat');
-    else if (heat >= 50) fill.classList.add('med-heat');
-  }
-
-  if (label) {
-    label.innerText = `SYSTEM HEAT: ${Math.round(heat)}%`;
-    if (heat >= 80) label.style.color = '#ff4444';
-    else if (heat >= 50) label.style.color = '#ffcc00';
-    else label.style.color = '#888';
-  }
-}
-
-function updateGlobalResources() {
-  const intel = GameManager.gameState.meta.intel;
-  const cash = GameManager.gameState.meta.cash;
-
-  const intelLabel = document.getElementById('intel-display');
-  if (intelLabel) intelLabel.innerText = `INTEL: ${intel}`;
-
-  const cashLabel = document.getElementById('cash-display');
-  if (cashLabel) cashLabel.innerText = `CASH: $${cash}`;
-}
-
-
-
-window.addEventListener('resourcesChanged', updateGlobalResources);
-window.addEventListener('intelPurchased', updateGlobalResources); // Legacy compat
-window.addEventListener('nextDayStarted', updateGlobalResources);
-
-updateGlobalHeat();
-updateGlobalResources();
+// HUD Controller (heat, resources) moved to src/app/HUDController.js
